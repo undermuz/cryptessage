@@ -7,6 +7,8 @@ import tailwindcss from "@tailwindcss/vite"
 
 export default defineConfig(() => ({
     root: import.meta.dirname,
+    /** GitHub project pages: set `VITE_BASE_PATH=/<repo>/` in CI (trailing slash). */
+    base: process.env.VITE_BASE_PATH ?? "/",
     cacheDir: "../../node_modules/.vite/apps/web-app",
     server: {
         port: 4200,

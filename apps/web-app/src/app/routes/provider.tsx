@@ -10,9 +10,13 @@ import { CryptDbProvider, type CryptDbService } from "@/di/crypt-db/types"
 import useConstant from "@/di/react/hooks/useConstant"
 import { useDiContainer } from "@/di/react/hooks/useDiContainer"
 
+const routerBasepath =
+    import.meta.env.BASE_URL.replace(/\/$/, "") || "/"
+
 const createAppRouter = () =>
     createRouter({
         routeTree,
+        basepath: routerBasepath,
         context: { di: undefined as unknown as Container },
         defaultPreload: "intent",
         scrollRestoration: true,
