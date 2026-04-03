@@ -1,109 +1,105 @@
-# Cryptessage
+# cryptessage
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+Browser-based, **offline-first** messaging for hostile networks: you exchange **OpenPGP public keys in person** (QR or paste), then move **encrypted payloads** over any channel (messengers, email, even another phone’s camera via QR).
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+There are **no central servers** and **no cloud account**. A **passphrase** derives a master key (**PBKDF2**); **contacts, messages, and private keys** are stored in **IndexedDB** encrypted with **AES-GCM**. The passphrase is **never** persisted—only kept in memory for the session.
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/nx-api/js?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+> **v0.1** ships as a normal **SPA** (Vite). Installable **PWA** (service worker, manifest) is planned as a separate iteration.
 
-## Generate a library
+## Features
+
+- **Unlock / create vault / restore backup** — one JSON backup file, encrypted with the same KDF + AES-GCM as the database (salt embedded in the file header).
+- **OpenPGP** — ECC keys (OpenPGP.js), encrypt+sign to a contact, decrypt+verify inbound armored messages.
+- **QR** — visit cards (JSON payload) and encrypted message blobs (length-limited; very long text may not fit a single QR).
+- **TanStack Router** — typed routes with an auth guard: locked session redirects to `/unlock`.
+- **InversifyJS** — crypto, storage, identity, backup, and conversation services are wired through DI (see `apps/web-app/src/di`).
+
+## Stack
+
+| Area        | Technology                                      |
+| ----------- | ----------------------------------------------- |
+| Monorepo    | Nx                                              |
+| App         | React 19, Vite 8, TypeScript                    |
+| UI          | Tailwind CSS 4, shadcn-style primitives (Base UI) |
+| Routing     | TanStack Router                                 |
+| DI          | InversifyJS                                     |
+| Crypto      | Web Crypto (PBKDF2, AES-GCM), OpenPGP.js        |
+| QR          | `qrcode`, `@zxing/browser`                      |
+
+## Repository layout
+
+```
+apps/web-app/     # cryptessage SPA (main application)
+  src/app/        # shell, router, bootstrap
+  src/di/         # services, Inversify modules, secure primitives
+  src/views/      # UI widgets and primitives
+  AGENTS.md       # conventions for agents & contributors
+```
+
+Shared Nx libraries under `libs/` are **not** used yet; domain code lives inside `web-app` until extracted in a follow-up task.
+
+## Getting started
+
+**Requirements:** Node.js 20+ (matches TanStack Router / toolchain expectations).
 
 ```sh
-npx nx g @nx/js:lib packages/pkg1 --publishable --importPath=@my-org/pkg1
+npm install
 ```
 
-## Run tasks
-
-To build the library use:
+### Development server
 
 ```sh
-npx nx build pkg1
+npx nx run web-app:serve
 ```
 
-To run any task with Nx use:
+Default dev URL is printed by Vite (typically `http://localhost:4200`).
+
+### Other tasks
 
 ```sh
-npx nx <target> <project-name>
+npx nx run web-app:build      # production build → apps/web-app/dist
+npx nx run web-app:typecheck  # TypeScript project references
+npx nx run web-app:lint       # ESLint
+
+# Crypto helpers (Vitest, Node environment)
+npx vitest run --config apps/web-app/vite.config.mts
 ```
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+### Environment (optional)
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+The template **Config** service may read `VITE_*` variables (see `apps/web-app/src/di/env`). For local cryptessage usage, defaults are enough; adjust if you extend the app with APIs.
 
-## Versioning and releasing
+## Security model (short)
 
-To version and release the library use
+- **Master key** — derived from passphrase + salt (salt in IndexedDB meta; not secret). **Argon2** is not implemented yet (PBKDF2 only).
+- **At rest** — record payloads in IDB are AES-GCM–encrypted; passphrase never written to `localStorage`.
+- **Session** — reload clears the in-memory key; user must unlock again.
+- **Backup file** — encrypted blob; needs **passphrase + file** to restore on another profile/device.
 
-```
-npx nx release
-```
+This is **not** a substitute for a full security audit. Threat model assumes a trusted browser runtime and no malware on the device.
 
-Pass `--dry-run` to see what would happen without actually releasing the library.
+## Adding contacts correctly
 
-[Learn more about Nx release &raquo;](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- Use the other person’s **full armored public key** (`-----BEGIN PGP PUBLIC KEY BLOCK-----` …) or their **QR / JSON visit card**.
+- A **fingerprint** (hex id) **cannot** be used to add a contact—it only identifies a key, it does not contain key material.
 
-## Keep TypeScript project references up to date
+Copy the full public key from **Settings** in cryptessage, or scan **Contacts → your visit card QR**.
 
-Nx automatically updates TypeScript [project references](https://www.typescriptlang.org/docs/handbook/project-references.html) in `tsconfig.json` files to ensure they remain accurate based on your project dependencies (`import` or `require` statements). This sync is automatically done when running tasks such as `build` or `typecheck`, which require updated references to function correctly.
+## Contributing
 
-To manually trigger the process to sync the project graph dependencies information to the TypeScript project references, run the following command:
+Follow [apps/web-app/AGENTS.md](apps/web-app/AGENTS.md) for layering (`di` / `app` / `views`), routing, i18n, and DI module patterns.
+
+## Nx workspace
+
+This repo is an Nx workspace. Useful commands:
 
 ```sh
-npx nx sync
+npx nx graph              # project graph
+npx nx sync               # refresh TS project references
 ```
 
-You can enforce that the TypeScript project references are always in the correct state when running in CI by adding a step to your CI job configuration that runs the following command:
+More: [Nx documentation](https://nx.dev).
 
-```sh
-npx nx sync:check
-```
+## License
 
-[Learn more about nx sync](https://nx.dev/reference/nx-commands#sync)
-
-## Set up CI!
-
-### Step 1
-
-To connect to Nx Cloud, run the following command:
-
-```sh
-npx nx connect
-```
-
-Connecting to Nx Cloud ensures a [fast and scalable CI](https://nx.dev/ci/intro/why-nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
-
-- [Remote caching](https://nx.dev/ci/features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/ci/features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/ci/features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/ci/features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-### Step 2
-
-Use the following command to configure a CI workflow for your workspace:
-
-```sh
-npx nx g ci-workflow
-```
-
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Install Nx Console
-
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
-
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Useful links
-
-Learn more:
-
-- [Learn more about this workspace setup](https://nx.dev/nx-api/js?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+MIT (see repository root).

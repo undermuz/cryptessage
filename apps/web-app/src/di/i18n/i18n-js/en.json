@@ -1,3 +1,77 @@
 {
-    "hello": "Hello, world!"
+    "hello": "Hello, world!",
+    "nav": {
+        "chats": "Chats",
+        "contacts": "Contacts",
+        "settings": "Settings"
+    },
+    "unlock": {
+        "title": "cryptessage",
+        "subtitle": "Passphrase protects your vault. It is never stored.",
+        "tab": {
+            "create": "Create vault",
+            "unlock": "Unlock",
+            "restore": "Restore backup"
+        },
+        "passphrase": "Passphrase",
+        "passphraseRepeat": "Repeat passphrase",
+        "displayName": "Display name (on your key)",
+        "submitCreate": "Create and continue",
+        "submitUnlock": "Unlock",
+        "submitRestore": "Restore",
+        "backupJson": "Backup file (JSON)",
+        "error": {
+            "passMismatch": "Passphrases do not match",
+            "generic": "Something went wrong"
+        }
+    },
+    "home": {
+        "title": "Chats",
+        "empty": "No contacts yet. Add someone from Contacts.",
+        "openChat": "Open"
+    },
+    "contacts": {
+        "title": "Contacts",
+        "addQr": "Scan QR visit card",
+        "addPaste": "Paste visit card (JSON), armored public key block, or scan QR — not the fingerprint hex",
+        "nameHint": "Name override (optional)",
+        "addBtn": "Add contact",
+        "yourCard": "Your visit card (QR)",
+        "showQr": "Show QR",
+        "hideQr": "Hide QR",
+        "listEmpty": "No contacts",
+        "stopCamera": "Stop camera",
+        "addOk": "Contact added.",
+        "addFailed": "%{reason}"
+    },
+    "chat": {
+        "title": "Chat",
+        "plainInput": "Message to encrypt",
+        "encryptBtn": "Encrypt",
+        "armoredOut": "Encrypted (armored)",
+        "copyArmored": "Copy",
+        "qrHint": "Single QR fits about %{max} characters; shorten the message if the QR fails.",
+        "pasteIn": "Paste incoming armored message",
+        "decryptBtn": "Decrypt and verify",
+        "decrypted": "Decrypted",
+        "signatureOk": "Signature valid",
+        "signatureBad": "Signature could not be verified",
+        "back": "Back to chats"
+    },
+    "settings": {
+        "title": "Settings",
+        "fingerprint": "Public key fingerprint",
+        "lock": "Lock app",
+        "exportBackup": "Download encrypted backup",
+        "backupHint": "Backup includes contacts, messages, and keys. Keep the file and passphrase separate.",
+        "publicKeyBlock": "Public key for contacts",
+        "publicKeyHelp": "Share this armored block or your QR visit card on Contacts. The fingerprint above is only an ID — others cannot add you from it alone.",
+        "copyPublicKey": "Copy public key"
+    },
+    "common": {
+        "loading": "Loading…"
+    },
+    "qr": {
+        "maxChars": "QR payload limit (approx.)"
+    }
 }

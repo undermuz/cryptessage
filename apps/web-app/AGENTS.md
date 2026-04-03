@@ -1,103 +1,101 @@
 # AGENTS Guide
 
-Этот файл описывает практические правила для AI-агентов, работающих в `apps/web-app`.
+This document describes practical rules for AI agents working in `apps/web-app`.
 
-## Цель
+## Goals
 
-- Делать изменения предсказуемо и в рамках архитектуры проекта.
-- Сохранять разделение слоев: `di` (бизнес-логика) / `app` (инфраструктура и страницы) / `views` (UI).
-- Не смешивать ответственность между страницами, виджетами и DI-сервисами.
+- Make changes predictably and within the project architecture.
+- Preserve layer separation: `di` (business logic) / `app` (infrastructure and pages) / `views` (UI).
+- Do not blur responsibilities between pages, widgets, and DI services.
 
-## Краткая карта проекта
+## Project map
 
-- `./src/di` — сервисы, API-клиенты, контейнерные модули, типы.
-- `./src/app` — точка входа, роутинг, layout, app-level orchestration.
+- `./src/di` — services, API clients, container modules, types.
+- `./src/app` — entry point, routing, layout, app-level orchestration.
 - `./src/views`:
-  - `ui` / `components` — примитивы и чистый UI;
-  - `widgets` — место для сложной UI-логики, запросов, DI-интеграций;
-  - `layouts` — каркасы страниц.
-- `libs/views` — общие UI-компоненты для приложений.
+  - `ui` / `components` — primitives and pure UI;
+  - `widgets` — complex UI logic, queries, DI integration;
+  - `layouts` — page shells.
 
-## Обязательные архитектурные правила
+## Required architecture rules
 
-1. **Страницы (`app/routes/**/page.tsx`) должны быть "тонкими"**  
-   Страница собирает layout + виджеты + простые элементы навигации.  
-   Если в странице растет логика (query/mutation, вычисления, состояние формы, сложные обработчики) — выносить в виджет.
+1. **Pages (`app/routes/**/page.tsx`) must stay thin**  
+   A page composes layout + widgets + simple navigation.  
+   If logic grows on the page (query/mutation, derived state, form state, heavy handlers) — move it into a widget.
 
-2. **Сложная логика — в `views/widgets`**  
-   Виджеты могут:
-   - использовать `useDi`, `useSnapshot`, `react-query`;
-   - держать локальный UI-state;
-   - собирать бизнес-данные для отображения.
+2. **Complex logic belongs in `views/widgets`**  
+   Widgets may:
+   - use `useDi`, `useSnapshot`, `react-query`;
+   - hold local UI state;
+   - assemble business data for display.
 
-3. **`views/components` и `views/ui` — без бизнес-логики**  
-   Не тянуть туда DI-сервисы и сценарную логику.
+3. **`views/components` and `views/ui` — no business logic**  
+   Do not pull DI services or scenario logic there.
 
-4. **`di/**` не зависит от UI**  
-   Провайдеры, API, модули и типы не импортируют компоненты `views`.
+4. **`di/**` must not depend on UI**  
+   Providers, APIs, modules, and types must not import `views` components.
 
-5. **i18n обязателен для пользовательского текста**  
-   Для текста в UI использовать `useT()` и ключи в `di/i18n/i18n-js/en.json`.
+5. **i18n is required for user-facing copy**  
+   Use `useT()` and keys in `di/i18n/i18n-js/en.json` for UI text.
 
-## Роутинг (TanStack Router)
+## Routing (TanStack Router)
 
-- В каждом сегменте:
-  - `routes.tsx` — `createRoute`, экспорт `indexRoute`, `tree`;
-  - `page.tsx` — компонент страницы.
-- Динамические сегменты именуются как `$param` (например, `$itemId`).
-- Новый дочерний маршрут должен быть добавлен в дерево родителя через `addChildren`.
-- В родительских страницах допускается условный рендер:
-  - индексный контент для базового маршрута;
-  - `<Outlet />` для вложенных полноэкранных маршрутов .
+- In each segment:
+  - `routes.tsx` — `createRoute`, export `indexRoute`, `tree`;
+  - `page.tsx` — page component.
+- Dynamic segments use `$param` (e.g. `$itemId`).
+- New child routes must be wired into the parent tree via `addChildren`.
+- Parent pages may conditionally render:
+  - index content for the base route;
+  - `<Outlet />` for nested full-screen routes.
 
-## DI (Inversify + Valtio) — паттерн добавления модуля
+## DI (Inversify + Valtio) — adding a module
 
-При добавлении нового домена:
+When adding a new domain:
 
-1. Создать `types.ts` с:
-   - токеном `Symbol.for(...)`;
-   - интерфейсом провайдера и типами данных.
-2. Создать `provider.ts` с `@injectable()`.
-3. Создать `module.ts` и bind в `inSingletonScope()`.
-4. Зарегистрировать модуль в `di/container.ts`.
-5. Если сервис должен стартовать на boot, добавить `initialize()` в `di/app/app.provider.ts`.
+1. Create `types.ts` with:
+   - a `Symbol.for(...)` token;
+   - provider interface and data types.
+2. Create `provider.ts` with `@injectable()`.
+3. Create `module.ts` and bind in `inSingletonScope()`.
+4. Register the module in `di/container.ts`.
+5. If the service must start on boot, add `initialize()` in `di/app/app.provider.ts`.
 
-### Быстрое создание DI-модуля через генератор
+### Scaffolding a DI module with the generator
 
-Для ускорения можно использовать генератор Inversify: [undermuz/inversify-generator](https://github.com/undermuz/inversify-generator).
+You can speed this up with the Inversify generator: [undermuz/inversify-generator](https://github.com/undermuz/inversify-generator).
 
-Команда для добавления нового модуля в конкретное приложение:
+Command to add a new module to a specific app:
 
 ```bash
 npx @undermuz/inversify-generator add-module <MODULE NAME> --project=apps/<APP NAME>/src
 ```
 
-После генерации:
-- проверить и при необходимости донастроить `types.ts`, `provider.ts`, `module.ts`;
-- убедиться, что модуль корректно добавлен в `di/container.ts`;
-- при необходимости добавить инициализацию в `di/app/app.provider.ts`.
+After generation:
 
+- review and adjust `types.ts`, `provider.ts`, `module.ts` as needed;
+- ensure the module is correctly registered in `di/container.ts`;
+- add initialization in `di/app/app.provider.ts` if required.
 
-## UI и код-стиль
+## UI and code style
 
-- Использовать готовые элементы из `@libs/views` и `@libs/views/ui/*`.
-- Предпочитать существующие layout/виджеты и паттерны именования.
-- Новые файлы называть по текущей конвенции:
-  - `index.tsx` для виджетов;
-  - `provider.ts`, `module.ts`, `types.ts` для DI.
+- Use building blocks from `@libs/views` and `@libs/views/ui/*`.
+- Prefer existing layouts, widgets, and naming patterns.
+- Name new files per current conventions:
+  - `index.tsx` for widgets;
+  - `provider.ts`, `module.ts`, `types.ts` for DI.
 
-## Практика изменений
+## Change discipline
 
-- Делать минимально необходимое изменение без лишнего рефакторинга.
-- Не ломать существующие контракты типов без необходимости.
-- После правок проверять линтер/тайпчек затронутых файлов.
+- Make the smallest change that solves the task; avoid drive-by refactors.
+- Do not break existing type contracts without a strong reason.
+- After edits, run linter / typecheck on touched files.
 
-## Быстрый checklist для агента
+## Quick agent checklist
 
-- [ ] Логика страницы не перегружена, сложное вынесено в виджет.
-- [ ] Текст в UI через `useT`, ключи добавлены в i18n.
-- [ ] Новый DI-модуль зарегистрирован в контейнере.
-- [ ] Если нужно, сервис инициализируется в `App` provider.
-- [ ] Новый маршрут подключен в `tree` родителя.
-- [ ] Локальные проверки (lint/types) пройдены для измененных файлов.
-
+- [ ] Page logic stays light; complex pieces live in widgets.
+- [ ] UI copy uses `useT`; keys added to i18n.
+- [ ] New DI module registered in the container.
+- [ ] If needed, service initializes in the `App` provider.
+- [ ] New route hooked into the parent `tree`.
+- [ ] Local checks (lint/types) pass for changed files.

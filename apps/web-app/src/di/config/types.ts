@@ -1,5 +1,5 @@
-import { LogLevels } from "@libs/di/logger/logger.types"
-import { Initializable } from "@libs/di/types/initializable"
+import { LogLevels } from "@/di/logger/types"
+import type { Initializable } from "@/di/types/initializable"
 
 export const ConfigProvider = Symbol.for("ConfigProvider")
 

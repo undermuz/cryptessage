@@ -34,4 +34,9 @@ export default defineConfig(() => ({
             transformMixedEsModules: true,
         },
     },
+    test: {
+        environment: "node",
+        include: ["src/**/*.spec.ts"],
+        passWithNoTests: true,
+    },
 }))

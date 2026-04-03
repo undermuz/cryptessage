@@ -73,7 +73,7 @@ export class AppConfig implements IConfigProvider {
     }
 
     public async initialize() {
-        this.apiPrefix = await this.getOrThrow("API_PREFIX")
+        this.apiPrefix = await this.get("API_PREFIX", "")
 
         this.logLevel = await this.get<LogLevels>("LOG_LEVEL", "trace")
 

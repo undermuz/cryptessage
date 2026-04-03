@@ -13,6 +13,7 @@ export function catchError<T extends unknown[] = unknown[]>(
 
             if (prefix)
                 logger.error(`${prefix}[Error: ${(e as Error)?.message}]`)
+            return undefined
         }
     }
 }

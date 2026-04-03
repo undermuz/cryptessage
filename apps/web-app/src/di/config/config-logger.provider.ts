@@ -115,6 +115,7 @@ export class ConfigLoggerProvider {
 
     protected getLoggerConfig(): LogTapeConfig<string, string> {
         return {
+            reset: true,
             sinks: {
                 console: getConsoleSink({
                     formatter: this.consoleFormatter.bind(this),

@@ -60,12 +60,14 @@ export class App implements IAppProvider {
     }
 
     private async _initialize() {
+        await this.config.initialize()
+
         await this.configLogger.initialize()
 
         this.logger.info("[init] start")
 
         await this.localStorage.initialize({
-            prefix: "courier_v1:",
+            prefix: "cryptessage_v1:",
         })
 
         this.logger.info("[init] local storage ✅")
