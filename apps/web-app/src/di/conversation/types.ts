@@ -12,7 +12,11 @@ export type IConversationService = {
     getContact(id: string): Promise<ContactPlain | null>
     deleteContact(id: string): Promise<void>
     encryptOutgoingMessage(contactId: string, plaintext: string): Promise<string>
-    saveOutboundArmored(contactId: string, armored: string): Promise<MessagePlain>
+    saveOutboundArmored(
+        contactId: string,
+        armoredForContact: string,
+        plaintext: string,
+    ): Promise<MessagePlain>
     saveInboundArmored(contactId: string, armored: string): Promise<MessagePlain>
     listMessages(contactId: string): Promise<MessagePlain[]>
 }

@@ -15,6 +15,10 @@ import {
     type VisitCardRawPayload,
 } from "@/di/openpgp-crypto/types"
 import type { ContactPlain, MessagePlain } from "@/di/crypt-db/types-data"
+import {
+    IdentityService,
+    type IIdentityService,
+} from "@/di/identity/types"
 import { QR_MESSAGE_MAX_BYTES } from "@/di/secure/constants"
 import { wrapOpenPgpBinaryForMessageQr } from "@/di/secure/message-qr-binary"
 import {
@@ -23,7 +27,6 @@ import {
 } from "@/views/widgets/qr-io/export-qr-block"
 import { ImportQrBlock } from "@/views/widgets/qr-io/import-qr-block"
 import { ImportQrPreviewShell } from "@/views/widgets/qr-io/import-qr-preview-shell"
-import { useClipboardImagePoll } from "@/views/widgets/qr-io/useClipboardImagePoll"
 import {
     decodeQrFromClipboardImage,
     decodeQrFromImageBlob,
@@ -46,6 +49,7 @@ export function ChatThreadWidget() {
     const { contactId } = useParams({ from: "/authed/chat/$contactId" })
     const conv = useDi<IConversationService>(ConversationService)
     const pgp = useDi<IOpenPgpCryptoService>(OpenPgpCryptoService)
+    const identity = useDi<IIdentityService>(IdentityService)
 
     const [contact, setContact] = useState<ContactPlain | null>(null)
     const [messages, setMessages] = useState<MessagePlain[]>([])
@@ -76,7 +80,23 @@ export function ChatThreadWidget() {
     )
     const [pasteQrBusy, setPasteQrBusy] = useState(false)
 
-    const clipboardImage = useClipboardImagePoll()
+    const [selfPublicKey, setSelfPublicKey] = useState<string | null>(null)
+
+    const [inboundPreview, setInboundPreview] = useState<
+        Record<
+            string,
+            | { ok: true; text: string; sig: boolean }
+            | { ok: false; err: string }
+        >
+    >({})
+
+    const [outboundPreview, setOutboundPreview] = useState<
+        Record<
+            string,
+            | { ok: true; text: string; sig: boolean }
+            | { ok: false; err: string }
+        >
+    >({})
 
     const reload = async () => {
         if (!contactId) {
@@ -85,6 +105,11 @@ export function ChatThreadWidget() {
         const c = await conv.getContact(contactId)
         setContact(c)
         setMessages(await conv.listMessages(contactId))
+        try {
+            setSelfPublicKey(await identity.getPublicKeyArmored())
+        } catch {
+            setSelfPublicKey(null)
+        }
     }
 
     useEffect(() => {
@@ -141,6 +166,86 @@ export function ChatThreadWidget() {
         }
     }, [importPending, contact, pgp, t])
 
+    useEffect(() => {
+        if (!contact) {
+            setInboundPreview({})
+            return
+        }
+        const inbound = messages.filter((m) => m.direction === "in")
+        if (inbound.length === 0) {
+            setInboundPreview({})
+            return
+        }
+        let cancelled = false
+        void Promise.all(
+            inbound.map(async (m) => {
+                try {
+                    const r = await pgp.decryptAndVerify(
+                        m.armoredPayload,
+                        contact.publicKeyArmored,
+                    )
+                    return [
+                        m.id,
+                        { ok: true, text: r.text, sig: r.signaturesValid },
+                    ] as const
+                } catch (e) {
+                    const err = e instanceof Error ? e.message : String(e)
+                    return [m.id, { ok: false, err }] as const
+                }
+            }),
+        ).then((entries) => {
+            if (!cancelled) {
+                setInboundPreview(Object.fromEntries(entries))
+            }
+        })
+        return () => {
+            cancelled = true
+        }
+    }, [messages, contact, pgp])
+
+    useEffect(() => {
+        if (!selfPublicKey) {
+            setOutboundPreview({})
+            return
+        }
+        const outbound = messages.filter(
+            (m) => m.direction === "out" && m.outboundSelfArmored,
+        )
+        if (outbound.length === 0) {
+            setOutboundPreview({})
+            return
+        }
+        let cancelled = false
+        void Promise.all(
+            outbound.map(async (m) => {
+                try {
+                    const r = await pgp.decryptAndVerify(
+                        m.outboundSelfArmored!,
+                        selfPublicKey,
+                    )
+                    return [
+                        m.id,
+                        {
+                            ok: true,
+                            text: r.text,
+                            sig: r.signaturesValid,
+                        },
+                    ] as const
+                } catch (e) {
+                    const err = e instanceof Error ? e.message : String(e)
+                    return [m.id, { ok: false, err }] as const
+                }
+            }),
+        ).then((entries) => {
+            if (!cancelled) {
+                setOutboundPreview(Object.fromEntries(entries))
+            }
+        })
+        return () => {
+            cancelled = true
+        }
+    }, [messages, selfPublicKey, pgp])
+
     const onEncrypt = async () => {
         if (!contactId || !contact) {
             return
@@ -156,7 +261,7 @@ export function ChatThreadWidget() {
         const wrapped = wrapOpenPgpBinaryForMessageQr(binary)
         setArmoredOut(armored)
         setMessageQrPayload(wrapped)
-        await conv.saveOutboundArmored(contactId, armored)
+        await conv.saveOutboundArmored(contactId, armored, plain)
         await reload()
         if (wrapped.byteLength > QR_MESSAGE_MAX_BYTES) {
             setWarnLen(true)
@@ -278,6 +383,66 @@ export function ChatThreadWidget() {
         )
     }
 
+    const renderStoredMessageBody = (m: MessagePlain) => {
+        if (m.direction === "out") {
+            if (!m.outboundSelfArmored) {
+                return (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        {t("chat.outboundLegacyNoSelfCopy")}
+                    </p>
+                )
+            }
+            const prev = outboundPreview[m.id]
+            if (!prev) {
+                return (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        {t("common.loading")}
+                    </p>
+                )
+            }
+            if (prev.ok) {
+                return (
+                    <div className="mt-1 space-y-1">
+                        <p className="whitespace-pre-wrap text-sm text-foreground">
+                            {prev.text}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                            {prev.sig
+                                ? t("chat.signatureOk")
+                                : t("chat.signatureBad")}
+                        </p>
+                    </div>
+                )
+            }
+            return (
+                <p className="mt-1 text-sm text-destructive">{prev.err}</p>
+            )
+        }
+        const prev = inboundPreview[m.id]
+        if (!prev) {
+            return (
+                <p className="mt-1 text-sm text-muted-foreground">
+                    {t("common.loading")}
+                </p>
+            )
+        }
+        if (prev.ok) {
+            return (
+                <div className="mt-1 space-y-1">
+                    <p className="whitespace-pre-wrap text-sm text-foreground">
+                        {prev.text}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                        {prev.sig
+                            ? t("chat.signatureOk")
+                            : t("chat.signatureBad")}
+                    </p>
+                </div>
+            )
+        }
+        return <p className="mt-1 text-sm text-destructive">{prev.err}</p>
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between gap-2">
@@ -347,6 +512,7 @@ export function ChatThreadWidget() {
                 labels={{
                     scan: t("chat.scanMessageQr"),
                     pasteFromImage: t("contacts.pasteQr"),
+                    pasteFromImagePending: t("contacts.pasteQrBusy"),
                     pickQrImage: t("contacts.pickQrImage"),
                     armoredSectionTitle: t("chat.pasteIn"),
                     armoredSubmit: t("chat.decryptBtn"),
@@ -356,7 +522,6 @@ export function ChatThreadWidget() {
                 onArmoredChange={setPasteIn}
                 onArmoredSubmit={() => void onDecryptArmoredPaste()}
                 armoredSubmitDisabled={!pasteIn.trim()}
-                hasClipboardImage={clipboardImage}
                 pasteBusy={pasteQrBusy}
                 scanOpen={importScan}
                 onOpenScan={() => setImportScan(true)}
@@ -478,10 +643,7 @@ export function ChatThreadWidget() {
                                 {m.direction === "out" ? "→" : "←"}
                             </span>{" "}
                             {new Date(m.createdAt).toLocaleString()}
-                            <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap font-mono">
-                                {m.armoredPayload.slice(0, 200)}
-                                {m.armoredPayload.length > 200 ? "…" : ""}
-                            </pre>
+                            {renderStoredMessageBody(m)}
                         </li>
                     ))}
                 </ul>

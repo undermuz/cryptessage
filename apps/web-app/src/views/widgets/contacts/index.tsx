@@ -25,7 +25,6 @@ import {
 } from "@/views/widgets/qr-io/export-qr-block"
 import { ImportQrBlock } from "@/views/widgets/qr-io/import-qr-block"
 import { ImportQrPreviewShell } from "@/views/widgets/qr-io/import-qr-preview-shell"
-import { useClipboardImagePoll } from "@/views/widgets/qr-io/useClipboardImagePoll"
 import {
     decodeQrFromClipboardImage,
     decodeQrFromImageBlob,
@@ -68,7 +67,6 @@ export function ContactsWidget() {
     const [preview, setPreview] = useState<QrPreviewInfo | null>(null)
     const [previewLoading, setPreviewLoading] = useState(false)
 
-    const clipboardImage = useClipboardImagePoll()
     const [pasteBusy, setPasteBusy] = useState(false)
 
     const exportLabels: ExportQrLabels = {
@@ -261,6 +259,7 @@ export function ContactsWidget() {
                 labels={{
                     scan: t("contacts.addQr"),
                     pasteFromImage: t("contacts.pasteQr"),
+                    pasteFromImagePending: t("contacts.pasteQrBusy"),
                     pickQrImage: t("contacts.pickQrImage"),
                     armoredSectionTitle: t("contacts.addPaste"),
                     armoredSubmit: t("contacts.addBtn"),
@@ -270,7 +269,6 @@ export function ContactsWidget() {
                 onArmoredChange={setPaste}
                 onArmoredSubmit={() => void addFromRaw(paste)}
                 armoredSubmitDisabled={!paste.trim()}
-                hasClipboardImage={clipboardImage}
                 pasteBusy={pasteBusy}
                 scanOpen={scan}
                 onOpenScan={() => setScan(true)}

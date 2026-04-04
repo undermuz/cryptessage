@@ -73,15 +73,25 @@ export class ConversationProvider implements IConversationService {
 
     public async saveOutboundArmored(
         contactId: string,
-        armored: string,
+        armoredForContact: string,
+        plaintext: string,
     ): Promise<MessagePlain> {
         const key = this.auth.getMasterKey()
+        const identity = await this.db.getIdentity(key)
+        if (!identity) {
+            throw new Error("No identity")
+        }
+        const outboundSelfArmored = await this.pgp.encryptAndSignForContact(
+            plaintext,
+            identity.publicKeyArmored,
+        )
         const m: MessagePlain = {
             id: crypto.randomUUID(),
             contactId,
             direction: "out",
-            armoredPayload: armored,
+            armoredPayload: armoredForContact,
             createdAt: Date.now(),
+            outboundSelfArmored,
         }
         await this.db.saveMessage(key, m)
         return m

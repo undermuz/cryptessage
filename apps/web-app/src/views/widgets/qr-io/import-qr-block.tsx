@@ -7,6 +7,8 @@ import { QrScannerPanel } from "@/views/widgets/qr-scanner"
 export type ImportQrLabels = {
     scan: string
     pasteFromImage: string
+    /** Label while `pasteBusy` after user clicked Paste (clipboard read + decode). */
+    pasteFromImagePending?: string
     /** Shown when `onPickQrImageFile` is set (e.g. iOS fallback). */
     pickQrImage?: string
     armoredSectionTitle: string
@@ -21,7 +23,6 @@ type Props = {
     onArmoredChange: (value: string) => void
     onArmoredSubmit: () => void
     armoredSubmitDisabled?: boolean
-    hasClipboardImage: boolean
     pasteBusy: boolean
     scanOpen: boolean
     onOpenScan: () => void
@@ -48,7 +49,6 @@ export function ImportQrBlock({
     onArmoredChange,
     onArmoredSubmit,
     armoredSubmitDisabled = false,
-    hasClipboardImage,
     pasteBusy,
     scanOpen,
     onOpenScan,
@@ -83,10 +83,13 @@ export function ImportQrBlock({
                 <Button
                     type="button"
                     variant="secondary"
-                    disabled={scanOpen || !hasClipboardImage || pasteBusy}
+                    disabled={scanOpen || pasteBusy}
                     onClick={() => void onPasteQrFromImage()}
                 >
-                    {labels.pasteFromImage}
+                    {pasteBusy
+                        ? (labels.pasteFromImagePending ??
+                          `${labels.pasteFromImage}…`)
+                        : labels.pasteFromImage}
                 </Button>
                 {onPickQrImageFile && labels.pickQrImage && (
                     <>
