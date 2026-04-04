@@ -37,6 +37,8 @@ jobs:
         run: node node_modules/nx/bin/nx.js run web-app:build
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          # Static hosting has no server fallback to index.html for nested paths.
+          VITE_ROUTER_HASH: "true"
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

@@ -1,4 +1,5 @@
 import { useEffect } from "react"
+import { createHashHistory } from "@tanstack/history"
 import {
     createRouter,
     RouterProvider as TanStackRouterProvider,
@@ -13,10 +14,13 @@ import { useDiContainer } from "@/di/react/hooks/useDiContainer"
 const routerBasepath =
     import.meta.env.BASE_URL.replace(/\/$/, "") || "/"
 
+const useHashRouter = import.meta.env.VITE_ROUTER_HASH === "true"
+
 const createAppRouter = () =>
     createRouter({
         routeTree,
         basepath: routerBasepath,
+        ...(useHashRouter ? { history: createHashHistory() } : {}),
         context: { di: undefined as unknown as Container },
         defaultPreload: "intent",
         scrollRestoration: true,

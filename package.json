@@ -47,6 +47,7 @@
     "@logtape/logtape": "^2.0.5",
     "@tailwindcss/vite": "^4.2.2",
     "@tanstack/react-query": "^5.96.2",
+    "@tanstack/history": "1.161.6",
     "@tanstack/react-router": "^1.0.0",
     "@tanstack/react-router-devtools": "^1.0.0",
     "@zxing/browser": "^0.1.5",
