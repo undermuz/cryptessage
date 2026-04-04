@@ -28,9 +28,10 @@ import { ImportQrPreviewShell } from "@/views/widgets/qr-io/import-qr-preview-sh
 import { useClipboardImagePoll } from "@/views/widgets/qr-io/useClipboardImagePoll"
 import {
     decodeQrFromClipboardImage,
+    decodeQrFromImageBlob,
 } from "@/views/widgets/qr-scanner/clipboard-qr"
 
-type PendingQrSource = "camera" | "clipboard"
+type PendingQrSource = "camera" | "clipboard" | "file"
 
 function visitPayloadByteLength(raw: VisitCardRawPayload): number {
     return typeof raw === "string"
@@ -198,6 +199,27 @@ export function ContactsWidget() {
         }
     }
 
+    const onPickQrImageFile = (file: File) => {
+        setPasteBusy(true)
+        setMsg(null)
+        void (async () => {
+            try {
+                const reader = new BrowserQRCodeReader()
+                const payload = await decodeQrFromImageBlob(reader, file)
+                if (!payload) {
+                    setMsg(t("contacts.pasteQrNoCode"))
+                    return
+                }
+                setPendingQr({ raw: payload, source: "file" })
+            } catch (e) {
+                const reason = e instanceof Error ? e.message : String(e)
+                setMsg(t("contacts.pasteQrFailed", { reason }))
+            } finally {
+                setPasteBusy(false)
+            }
+        })()
+    }
+
     const confirmAddPending = async () => {
         if (!pendingQr) {
             return
@@ -239,6 +261,7 @@ export function ContactsWidget() {
                 labels={{
                     scan: t("contacts.addQr"),
                     pasteFromImage: t("contacts.pasteQr"),
+                    pickQrImage: t("contacts.pickQrImage"),
                     armoredSectionTitle: t("contacts.addPaste"),
                     armoredSubmit: t("contacts.addBtn"),
                 }}
@@ -253,6 +276,7 @@ export function ContactsWidget() {
                 onOpenScan={() => setScan(true)}
                 onCloseScan={() => setScan(false)}
                 onPasteQrFromImage={() => void onPasteQrFromClipboard()}
+                onPickQrImageFile={onPickQrImageFile}
                 onScannedPayload={(payload) =>
                     setPendingQr({ raw: payload, source: "camera" })
                 }
@@ -268,7 +292,9 @@ export function ContactsWidget() {
                             metaLine={`${
                                 pendingQr.source === "camera"
                                     ? t("contacts.reviewSourceCamera")
-                                    : t("contacts.reviewSourceClipboard")
+                                    : pendingQr.source === "file"
+                                      ? t("contacts.reviewSourceFile")
+                                      : t("contacts.reviewSourceClipboard")
                             } · ${t("contacts.reviewPayloadSize", {
                                 n: visitPayloadByteLength(pendingQr.raw),
                             })}`}

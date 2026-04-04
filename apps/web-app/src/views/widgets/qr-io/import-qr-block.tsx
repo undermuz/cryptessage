@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { useRef, type ChangeEvent, type ReactNode } from "react"
 
 import { Button } from "@/views/ui/button"
 import type { VisitCardRawPayload } from "@/di/openpgp-crypto/types"
@@ -7,6 +7,8 @@ import { QrScannerPanel } from "@/views/widgets/qr-scanner"
 export type ImportQrLabels = {
     scan: string
     pasteFromImage: string
+    /** Shown when `onPickQrImageFile` is set (e.g. iOS fallback). */
+    pickQrImage?: string
     armoredSectionTitle: string
     armoredSubmit: string
 }
@@ -25,6 +27,8 @@ type Props = {
     onOpenScan: () => void
     onCloseScan: () => void
     onPasteQrFromImage: () => void
+    /** iOS-friendly: decode QR from a photo / screenshot file. */
+    onPickQrImageFile?: (file: File) => void
     onScannedPayload: (payload: VisitCardRawPayload) => void
     /** Render when user has scanned/pasted a QR (preview + actions). */
     preview?: ReactNode
@@ -50,10 +54,21 @@ export function ImportQrBlock({
     onOpenScan,
     onCloseScan,
     onPasteQrFromImage,
+    onPickQrImageFile,
     onScannedPayload,
     preview,
     nameHint,
 }: Props) {
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
+    const onFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        e.target.value = ""
+        if (file && onPickQrImageFile) {
+            onPickQrImageFile(file)
+        }
+    }
+
     return (
         <section className="space-y-3 rounded-lg border border-border p-4">
             <h2 className="text-sm font-medium">{heading}</h2>
@@ -73,6 +88,25 @@ export function ImportQrBlock({
                 >
                     {labels.pasteFromImage}
                 </Button>
+                {onPickQrImageFile && labels.pickQrImage && (
+                    <>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="sr-only"
+                            onChange={onFileChange}
+                        />
+                        <Button
+                            type="button"
+                            variant="outline"
+                            disabled={scanOpen || pasteBusy}
+                            onClick={() => fileInputRef.current?.click()}
+                        >
+                            {labels.pickQrImage}
+                        </Button>
+                    </>
+                )}
             </div>
             {scanOpen && (
                 <QrScannerPanel

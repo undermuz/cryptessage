@@ -1,12 +1,28 @@
 import { useEffect, useState } from "react"
 
-import { clipboardContainsImage } from "@/views/widgets/qr-scanner/clipboard-qr"
+import {
+    clipboardAsyncReadPollWorks,
+    clipboardContainsImage,
+    isIosLikeDevice,
+} from "@/views/widgets/qr-scanner/clipboard-qr"
 
-/** True when clipboard likely has an image (for enabling Paste QR). */
+/**
+ * Desktop: reflects clipboard image probe (enables “Paste QR” when an image is likely present).
+ * iOS / iPadOS: always true — async clipboard read only works on tap; polling would stay false.
+ */
 export function useClipboardImagePoll(): boolean {
-    const [hasImage, setHasImage] = useState(false)
+    const [hasImage, setHasImage] = useState(() =>
+        isIosLikeDevice() ? true : false,
+    )
 
     useEffect(() => {
+        if (!clipboardAsyncReadPollWorks()) {
+            if (!isIosLikeDevice()) {
+                setHasImage(false)
+            }
+            return
+        }
+
         const refresh = () => {
             void clipboardContainsImage().then(setHasImage)
         }

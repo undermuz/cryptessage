@@ -26,9 +26,10 @@ import { ImportQrPreviewShell } from "@/views/widgets/qr-io/import-qr-preview-sh
 import { useClipboardImagePoll } from "@/views/widgets/qr-io/useClipboardImagePoll"
 import {
     decodeQrFromClipboardImage,
+    decodeQrFromImageBlob,
 } from "@/views/widgets/qr-scanner/clipboard-qr"
 
-type ImportSource = "camera" | "clipboard"
+type ImportSource = "camera" | "clipboard" | "file"
 
 function payloadByteLength(raw: VisitCardRawPayload): number {
     return typeof raw === "string"
@@ -227,6 +228,27 @@ export function ChatThreadWidget() {
         }
     }
 
+    const onPickMessageQrFromFile = (file: File) => {
+        setPasteQrBusy(true)
+        setToast(null)
+        void (async () => {
+            try {
+                const reader = new BrowserQRCodeReader()
+                const payload = await decodeQrFromImageBlob(reader, file)
+                if (!payload) {
+                    setToast(t("contacts.pasteQrNoCode"))
+                    return
+                }
+                setImportPending({ raw: payload, source: "file" })
+            } catch (e) {
+                const reason = e instanceof Error ? e.message : String(e)
+                setToast(t("contacts.pasteQrFailed", { reason }))
+            } finally {
+                setPasteQrBusy(false)
+            }
+        })()
+    }
+
     const exportLabels: ExportQrLabels = {
         showQr: t("contacts.showQr"),
         hideQr: t("contacts.hideQr"),
@@ -325,6 +347,7 @@ export function ChatThreadWidget() {
                 labels={{
                     scan: t("chat.scanMessageQr"),
                     pasteFromImage: t("contacts.pasteQr"),
+                    pickQrImage: t("contacts.pickQrImage"),
                     armoredSectionTitle: t("chat.pasteIn"),
                     armoredSubmit: t("chat.decryptBtn"),
                 }}
@@ -341,6 +364,7 @@ export function ChatThreadWidget() {
                 onPasteQrFromImage={() =>
                     void onPasteMessageQrFromClipboard()
                 }
+                onPickQrImageFile={onPickMessageQrFromFile}
                 onScannedPayload={(payload) =>
                     setImportPending({ raw: payload, source: "camera" })
                 }
@@ -351,7 +375,9 @@ export function ChatThreadWidget() {
                             metaLine={`${
                                 importPending.source === "camera"
                                     ? t("contacts.reviewSourceCamera")
-                                    : t("contacts.reviewSourceClipboard")
+                                    : importPending.source === "file"
+                                      ? t("contacts.reviewSourceFile")
+                                      : t("contacts.reviewSourceClipboard")
                             } · ${t("contacts.reviewPayloadSize", {
                                 n: payloadByteLength(importPending.raw),
                             })}`}
