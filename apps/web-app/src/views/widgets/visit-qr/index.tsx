@@ -1,32 +1,67 @@
-import { useEffect, useRef } from "react"
+import {
+    forwardRef,
+    useCallback,
+    useEffect,
+    useRef,
+} from "react"
 import QRCode from "qrcode"
 
 type Props = {
     payload: string
     onTooLong?: () => void
+    onDrawComplete?: () => void
     maxChars: number
 }
 
-export function VisitQrCanvas({ payload, onTooLong, maxChars }: Props) {
-    const canvasRef = useRef<HTMLCanvasElement>(null)
+export const VisitQrCanvas = forwardRef<HTMLCanvasElement, Props>(
+    function VisitQrCanvas(
+        { payload, onTooLong, onDrawComplete, maxChars },
+        ref,
+    ) {
+        const innerRef = useRef<HTMLCanvasElement | null>(null)
 
-    useEffect(() => {
-        const canvas = canvasRef.current
-        if (!canvas) {
-            return
-        }
-        if (payload.length > maxChars) {
-            onTooLong?.()
-            return
-        }
-        void QRCode.toCanvas(canvas, payload, {
-            width: 240,
-            margin: 2,
-            errorCorrectionLevel: "M",
-        }).catch(() => {
-            /* invalid length / content */
-        })
-    }, [payload, maxChars, onTooLong])
+        const setCanvasRef = useCallback(
+            (el: HTMLCanvasElement | null) => {
+                innerRef.current = el
+                if (typeof ref === "function") {
+                    ref(el)
+                } else if (ref) {
+                    ref.current = el
+                }
+            },
+            [ref],
+        )
 
-    return <canvas ref={canvasRef} className="rounded-md border border-border" />
-}
+        const onDrawCompleteRef = useRef(onDrawComplete)
+        onDrawCompleteRef.current = onDrawComplete
+
+        useEffect(() => {
+            const canvas = innerRef.current
+            if (!canvas) {
+                return
+            }
+            if (payload.length > maxChars) {
+                onTooLong?.()
+                return
+            }
+            void QRCode.toCanvas(canvas, payload, {
+                width: 240,
+                margin: 2,
+                errorCorrectionLevel: "M",
+            })
+                .then(() => {
+                    onDrawCompleteRef.current?.()
+                })
+                .catch(() => {
+                    /* invalid length / content */
+                })
+        }, [payload, maxChars, onTooLong])
+
+        return (
+            <canvas
+                ref={setCanvasRef}
+                className="rounded-md border border-border"
+            />
+        )
+    },
+)
