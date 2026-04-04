@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 
+import { useTheme, type ThemePreference } from "@/app/theme"
 import { Button } from "@/views/ui/button"
 import { useT } from "@/di/react/hooks/useT"
 import { useDi } from "@/di/react/hooks/useDi"
@@ -16,6 +17,7 @@ import {
 
 export function SettingsWidget() {
     const t = useT()
+    const { preference, setPreference } = useTheme()
     const navigate = useNavigate()
     const auth = useDi<IAuthService>(AuthService)
     const identity = useDi<IIdentityService>(IdentityService)
@@ -63,6 +65,23 @@ export function SettingsWidget() {
     return (
         <div className="space-y-6">
             <h1 className="text-lg font-semibold">{t("settings.title")}</h1>
+
+            <section className="space-y-2 rounded-lg border border-border p-4">
+                <h2 className="text-sm font-medium">{t("settings.appearance")}</h2>
+                <p className="text-xs text-muted-foreground">{t("settings.themeHint")}</p>
+                <select
+                    className="w-full max-w-xs rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={preference}
+                    onChange={(e) =>
+                        setPreference(e.target.value as ThemePreference)
+                    }
+                    aria-label={t("settings.appearance")}
+                >
+                    <option value="system">{t("settings.themeSystem")}</option>
+                    <option value="light">{t("settings.themeLight")}</option>
+                    <option value="dark">{t("settings.themeDark")}</option>
+                </select>
+            </section>
 
             <section className="space-y-2 rounded-lg border border-border p-4">
                 <h2 className="text-sm font-medium">{t("settings.fingerprint")}</h2>

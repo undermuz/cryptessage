@@ -4,6 +4,22 @@
     <meta charset="utf-8" />
     <title>cryptessage</title>
     <base href="%BASE_URL%" />
+    <script>
+      (function () {
+        try {
+          var k = "cryptessage-theme";
+          var p = localStorage.getItem(k);
+          var root = document.documentElement;
+          function sysDark() {
+            return window.matchMedia("(prefers-color-scheme: dark)").matches;
+          }
+          if (p === "dark") root.classList.add("dark");
+          else if (p === "light") root.classList.remove("dark");
+          else if (sysDark()) root.classList.add("dark");
+          else root.classList.remove("dark");
+        } catch (e) {}
+      })();
+    </script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#09090b" />

@@ -109,7 +109,12 @@
         "backupHint": "Backup includes contacts, messages, and keys. Keep the file and passphrase separate.",
         "publicKeyBlock": "Public key for contacts",
         "publicKeyHelp": "Share this armored block or your QR visit card on Contacts. The fingerprint above is only an ID — others cannot add you from it alone.",
-        "copyPublicKey": "Copy public key"
+        "copyPublicKey": "Copy public key",
+        "appearance": "Appearance",
+        "themeHint": "Default follows your device setting.",
+        "themeSystem": "System",
+        "themeLight": "Light",
+        "themeDark": "Dark"
     },
     "common": {
         "loading": "Loading…"

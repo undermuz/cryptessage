@@ -3,6 +3,7 @@ import { Suspense } from "react"
 import { DiProvider } from "@/di/react/di.provider"
 import { AppInitializer, Bootstrap } from "./app.initializer"
 import { RouterProvider } from "./routes/provider"
+import { ThemeProvider } from "./theme"
 
 function AfterDi() {
     return <RouterProvider />
@@ -10,13 +11,15 @@ function AfterDi() {
 
 export function App() {
     return (
-        <Suspense fallback={<Bootstrap />}>
-            <DiProvider>
-                <AppInitializer>
-                    <AfterDi />
-                </AppInitializer>
-            </DiProvider>
-        </Suspense>
+        <ThemeProvider>
+            <Suspense fallback={<Bootstrap />}>
+                <DiProvider>
+                    <AppInitializer>
+                        <AfterDi />
+                    </AppInitializer>
+                </DiProvider>
+            </Suspense>
+        </ThemeProvider>
     )
 }
 
