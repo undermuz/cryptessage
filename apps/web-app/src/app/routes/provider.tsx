@@ -16,10 +16,13 @@ const routerBasepath =
 
 const useHashRouter = import.meta.env.VITE_ROUTER_HASH === "true"
 
+/** Hash history: document path is already `/<repo>/`; hash must be `#/contacts`, not `#/<repo>/contacts`. */
+const resolvedBasepath = useHashRouter ? "/" : routerBasepath
+
 const createAppRouter = () =>
     createRouter({
         routeTree,
-        basepath: routerBasepath,
+        basepath: resolvedBasepath,
         ...(useHashRouter ? { history: createHashHistory() } : {}),
         context: { di: undefined as unknown as Container },
         defaultPreload: "intent",
