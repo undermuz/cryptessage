@@ -1,5 +1,8 @@
 import { BrowserQRCodeReader } from "@zxing/browser"
 
+import type { VisitCardRawPayload } from "@/di/openpgp-crypto/types"
+import { zxingCryptessagePayloadFromResult } from "@/views/widgets/qr-scanner/zxing-qr-payload"
+
 export async function clipboardContainsImage(): Promise<boolean> {
     if (!navigator.clipboard?.read) {
         return false
@@ -19,7 +22,7 @@ export async function clipboardContainsImage(): Promise<boolean> {
 
 export async function decodeQrFromClipboardImage(
     reader: BrowserQRCodeReader,
-): Promise<string | null> {
+): Promise<VisitCardRawPayload | null> {
     if (!navigator.clipboard?.read) {
         return null
     }
@@ -43,7 +46,15 @@ export async function decodeQrFromClipboardImage(
         bitmap.close()
         try {
             const result = reader.decodeFromCanvas(canvas)
-            return result.getText()
+            const payload = zxingCryptessagePayloadFromResult(result)
+            if (
+                typeof payload === "string"
+                    ? payload.length > 0
+                    : payload.byteLength > 0
+            ) {
+                return payload
+            }
+            return null
         } catch {
             return null
         }

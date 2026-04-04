@@ -9,6 +9,7 @@ import type { ContactPlain, MessagePlain } from "@/di/crypt-db/types-data"
 import {
     OpenPgpCryptoService,
     type IOpenPgpCryptoService,
+    type VisitCardRawPayload,
 } from "@/di/openpgp-crypto/types"
 import type { IConversationService } from "./types"
 
@@ -24,11 +25,11 @@ export class ConversationProvider implements IConversationService {
     private readonly pgp!: IOpenPgpCryptoService
 
     public async addContactFromVisitCard(
-        rawCard: string,
+        rawCard: VisitCardRawPayload,
         displayNameOverride?: string,
     ): Promise<ContactPlain> {
         const key = this.auth.getMasterKey()
-        const parsed = this.pgp.parseVisitCard(rawCard)
+        const parsed = await this.pgp.parseVisitCard(rawCard)
         await this.pgp.validatePublicKeyArmored(parsed.publicKeyArmored)
         const c: ContactPlain = {
             id: crypto.randomUUID(),

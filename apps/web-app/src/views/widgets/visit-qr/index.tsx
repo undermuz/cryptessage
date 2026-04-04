@@ -6,16 +6,23 @@ import {
 } from "react"
 import QRCode from "qrcode"
 
+function payloadByteLength(payload: string | Uint8Array): number {
+    return typeof payload === "string"
+        ? new TextEncoder().encode(payload).length
+        : payload.byteLength
+}
+
 type Props = {
-    payload: string
+    payload: string | Uint8Array
     onTooLong?: () => void
     onDrawComplete?: () => void
-    maxChars: number
+    /** Max encoded size in bytes (byte mode for `Uint8Array`, UTF-8 length for string). */
+    maxByteLength: number
 }
 
 export const VisitQrCanvas = forwardRef<HTMLCanvasElement, Props>(
     function VisitQrCanvas(
-        { payload, onTooLong, onDrawComplete, maxChars },
+        { payload, onTooLong, onDrawComplete, maxByteLength },
         ref,
     ) {
         const innerRef = useRef<HTMLCanvasElement | null>(null)
@@ -40,11 +47,16 @@ export const VisitQrCanvas = forwardRef<HTMLCanvasElement, Props>(
             if (!canvas) {
                 return
             }
-            if (payload.length > maxChars) {
+            if (payloadByteLength(payload) > maxByteLength) {
                 onTooLong?.()
                 return
             }
-            void QRCode.toCanvas(canvas, payload, {
+            const qrData =
+                typeof payload === "string"
+                    ? payload
+                    : ([{ data: payload, mode: "byte" }] as const)
+
+            void QRCode.toCanvas(canvas, qrData as unknown as string, {
                 width: 240,
                 margin: 2,
                 errorCorrectionLevel: "M",
@@ -55,7 +67,7 @@ export const VisitQrCanvas = forwardRef<HTMLCanvasElement, Props>(
                 .catch(() => {
                     /* invalid length / content */
                 })
-        }, [payload, maxChars, onTooLong])
+        }, [payload, maxByteLength, onTooLong])
 
         return (
             <canvas

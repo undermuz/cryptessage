@@ -1,10 +1,11 @@
+import type { VisitCardRawPayload } from "@/di/openpgp-crypto/types"
 import type { ContactPlain, MessagePlain } from "@/di/crypt-db/types-data"
 
 export const ConversationService = Symbol.for("ConversationService")
 
 export type IConversationService = {
     addContactFromVisitCard(
-        rawCard: string,
+        rawCard: VisitCardRawPayload,
         displayNameOverride?: string,
     ): Promise<ContactPlain>
     listContacts(): Promise<ContactPlain[]>

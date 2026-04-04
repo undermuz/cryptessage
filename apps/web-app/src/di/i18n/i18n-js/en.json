@@ -37,6 +37,9 @@
         "nameHint": "Name override (optional)",
         "addBtn": "Add contact",
         "yourCard": "Your visit card (QR)",
+        "addVisitCardSection": "Add contact (QR or text)",
+        "copyVisitCardJson": "Copy visit card (JSON)",
+        "copyVisitCardJsonOk": "Visit card JSON copied.",
         "showQr": "Show QR",
         "hideQr": "Hide QR",
         "listEmpty": "No contacts",
@@ -54,7 +57,7 @@
         "reviewTitle": "Review scanned QR",
         "reviewSourceCamera": "Source: camera",
         "reviewSourceClipboard": "Source: clipboard image",
-        "reviewPayloadSize": "Decoded length: %{n} characters",
+        "reviewPayloadSize": "Decoded size: %{n} bytes",
         "reviewQrTooLong": "Payload is too long to render as a single QR in this app; the decoded text is still shown for validation.",
         "reviewValid": "Valid visit card / public key",
         "reviewInvalid": "Not a valid visit card or key",
@@ -73,8 +76,22 @@
         "plainInput": "Message to encrypt",
         "encryptBtn": "Encrypt",
         "armoredOut": "Encrypted (armored)",
-        "copyArmored": "Copy",
+        "copyArmored": "Copy ciphertext",
+        "copyArmoredOk": "Ciphertext copied.",
+        "exportEncryptedSection": "Encrypted message (QR & text)",
+        "exportForContactHint": "Share this QR or armored text with %{name}. It is encrypted for their key—only they can decrypt it. You cannot paste it into “Receive” below; that area is for messages they send you.",
+        "receiveEncrypted": "Receive encrypted message",
+        "receiveOnlyIncomingHint": "Use this when %{name} sent you ciphertext (encrypted for your public key). Your own outgoing QR or paste goes to them, not here.",
+        "errCannotDecryptOwnOutgoing": "This message is encrypted for the contact’s public key, not yours—only they can decrypt it. “Receive” is for incoming messages from this contact (encrypted for you).",
+        "scanMessageQr": "Scan message QR",
+        "reviewScannedCiphertext": "Review scanned ciphertext",
+        "saveInbound": "Save to chat",
+        "saveInboundOk": "Message saved.",
+        "saveInboundFail": "Could not save: %{reason}",
+        "pasteArmoredPlaceholder": "-----BEGIN PGP MESSAGE----- …",
         "qrHint": "Single QR fits about %{max} characters; shorten the message if the QR fails.",
+        "qrBinaryHint": "QR uses binary OpenPGP (CMM1 wrapper), about %{max} bytes max for this app.",
+        "qrTooLarge": "Ciphertext is too large for a single QR (>%{max} bytes). Shorten the message or use copy/paste.",
         "pasteIn": "Paste incoming armored message",
         "decryptBtn": "Decrypt and verify",
         "decrypted": "Decrypted",
@@ -96,6 +113,7 @@
         "loading": "Loading…"
     },
     "qr": {
-        "maxChars": "QR payload limit (approx.)"
+        "maxChars": "QR payload limit (approx.)",
+        "visitCardBinaryMax": "Visit card QR (binary mode), max payload bytes (approx.)"
     }
 }

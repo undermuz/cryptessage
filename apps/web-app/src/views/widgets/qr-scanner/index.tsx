@@ -11,11 +11,13 @@ import { NotFoundException } from "@zxing/library"
 
 import { Button } from "@/views/ui/button"
 import { useT } from "@/di/react/hooks/useT"
+import type { VisitCardRawPayload } from "@/di/openpgp-crypto/types"
+import { zxingCryptessagePayloadFromResult } from "@/views/widgets/qr-scanner/zxing-qr-payload"
 
 const LOG_PREFIX = "[qr-scanner]"
 
 type Props = {
-    onResult: (text: string) => void
+    onResult: (payload: VisitCardRawPayload) => void
     onClose: () => void
 }
 
@@ -89,13 +91,24 @@ export function QrScannerPanel({ onResult, onClose }: Props) {
             deviceId: deviceId ?? "default",
         })
 
-        const handleDecoded = (text: string, stop: () => void) => {
+        const handleDecoded = (
+            payload: VisitCardRawPayload,
+            stop: () => void,
+        ) => {
             stop()
+            const len =
+                typeof payload === "string"
+                    ? payload.length
+                    : payload.byteLength
+            const preview =
+                typeof payload === "string"
+                    ? payload.slice(0, 80)
+                    : `[binary ${payload.byteLength} bytes]`
             appendLog("QR symbol decoded", {
-                length: text.length,
-                preview: text.slice(0, 80),
+                length: len,
+                preview,
             })
-            onResultRef.current(text)
+            onResultRef.current(payload)
         }
 
         void reader
@@ -104,8 +117,9 @@ export function QrScannerPanel({ onResult, onClose }: Props) {
                     return
                 }
                 if (result) {
-                    const text = result.getText()
-                    handleDecoded(text, () => c?.stop())
+                    handleDecoded(zxingCryptessagePayloadFromResult(result), () =>
+                        c?.stop(),
+                    )
                     return
                 }
                 if (!err) {
