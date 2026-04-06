@@ -49,6 +49,7 @@ export function UnlockWidget() {
         if (!(await identity.hasIdentity())) {
             await identity.ensureIdentity(name.trim() || "User")
         }
+        await identity.ensureCompactIdentity()
     }
 
     const onCreate = async () => {

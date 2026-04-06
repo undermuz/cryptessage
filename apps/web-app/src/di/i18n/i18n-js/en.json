@@ -72,7 +72,17 @@
         "cameraLabel": "Camera",
         "scanLog": "Scan log",
         "addOk": "Contact added.",
-        "addFailed": "%{reason}"
+        "addFailed": "%{reason}",
+        "visitInterpretMode": "Visit card format (interpret as)",
+        "visitInterpretAuto": "Auto-detect",
+        "visitInterpretOpenpgp": "OpenPGP (JSON / armored / CMV2)",
+        "visitInterpretCompact": "Compact v1 (binary)",
+        "reviewProtocol": "Detected protocol: %{p}",
+        "reviewCompactPub": "Ed25519 public key (prefix)",
+        "reviewCompactValid": "Valid compact visit card (NaCl keys).",
+        "reviewInvalidCompact": "Not a valid compact visit card.",
+        "reviewInvalidCompactPaste": "Expected base64 of compact visit card binary.",
+        "visitCardUsesPrefs": "Format follows Settings → visit card preference."
     },
     "chat": {
         "title": "Chat",
@@ -116,7 +126,11 @@
         "themeHint": "Default follows your device setting.",
         "themeSystem": "System",
         "themeLight": "Light",
-        "themeDark": "Dark"
+        "themeDark": "Dark",
+        "visitCardFormat": "Your visit card (QR) format",
+        "visitCardFormatHint": "OpenPGP is larger but interoperable; Compact v1 is ~70–90 bytes for easier QR scanning.",
+        "visitCardOpenpgp": "OpenPGP (CMV2 / JSON)",
+        "visitCardCompact": "Compact v1 (binary)"
     },
     "common": {
         "loading": "Loading…"

@@ -16,6 +16,8 @@ import { CryptDbModule } from "./crypt-db/module"
 import { AuthModule } from "./auth/module"
 import { IdentityModule } from "./identity/module"
 import { OpenPgpCryptoModule } from "./openpgp-crypto/module"
+import { CryptoPrefsModule } from "./crypto-prefs/module"
+import { MessagingCryptoModule } from "./messaging-crypto/module"
 import { VaultBackupModule } from "./vault-backup/module"
 import { ConversationModule } from "./conversation/module"
 import { AppModule } from "./app/app.module"
@@ -39,6 +41,8 @@ export const createDiContainer = () => {
     di.load(AuthModule)
     di.load(IdentityModule)
     di.load(OpenPgpCryptoModule)
+    di.load(CryptoPrefsModule)
+    di.load(MessagingCryptoModule)
     di.load(VaultBackupModule)
     di.load(ConversationModule)
     di.load(AppModule)

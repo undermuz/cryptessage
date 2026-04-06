@@ -10,17 +10,12 @@ import {
     type IConversationService,
 } from "@/di/conversation/types"
 import {
-    OpenPgpCryptoService,
-    type IOpenPgpCryptoService,
-    type VisitCardRawPayload,
-} from "@/di/openpgp-crypto/types"
+    MessagingCryptoService,
+    type IMessagingCryptoService,
+} from "@/di/messaging-crypto/types"
+import type { VisitCardRawPayload } from "@/di/openpgp-crypto/types"
 import type { ContactPlain, MessagePlain } from "@/di/crypt-db/types-data"
-import {
-    IdentityService,
-    type IIdentityService,
-} from "@/di/identity/types"
 import { QR_MESSAGE_MAX_BYTES } from "@/di/secure/constants"
-import { wrapOpenPgpBinaryForMessageQr } from "@/di/secure/message-qr-binary"
 import {
     ExportQrBlock,
     type ExportQrLabels,
@@ -48,8 +43,7 @@ export function ChatThreadWidget() {
     const t = useT()
     const { contactId } = useParams({ from: "/authed/chat/$contactId" })
     const conv = useDi<IConversationService>(ConversationService)
-    const pgp = useDi<IOpenPgpCryptoService>(OpenPgpCryptoService)
-    const identity = useDi<IIdentityService>(IdentityService)
+    const messaging = useDi<IMessagingCryptoService>(MessagingCryptoService)
 
     const [contact, setContact] = useState<ContactPlain | null>(null)
     const [messages, setMessages] = useState<MessagePlain[]>([])
@@ -80,8 +74,6 @@ export function ChatThreadWidget() {
     )
     const [pasteQrBusy, setPasteQrBusy] = useState(false)
 
-    const [selfPublicKey, setSelfPublicKey] = useState<string | null>(null)
-
     const [inboundPreview, setInboundPreview] = useState<
         Record<
             string,
@@ -105,11 +97,6 @@ export function ChatThreadWidget() {
         const c = await conv.getContact(contactId)
         setContact(c)
         setMessages(await conv.listMessages(contactId))
-        try {
-            setSelfPublicKey(await identity.getPublicKeyArmored())
-        } catch {
-            setSelfPublicKey(null)
-        }
     }
 
     useEffect(() => {
@@ -134,10 +121,13 @@ export function ChatThreadWidget() {
         setImportDecryptLoading(true)
         setImportDecryptPreview(null)
         setImportDecryptErr(null)
-        void pgp
-            .decryptAndVerify(
-                importPending.raw,
-                contact.publicKeyArmored,
+        void messaging
+            .decryptIncoming(
+                contact,
+                typeof importPending.raw === "string"
+                    ? importPending.raw
+                    : importPending.raw,
+                contact.cryptoProtocol,
             )
             .then((r) => {
                 if (!cancelled) {
@@ -164,7 +154,7 @@ export function ChatThreadWidget() {
         return () => {
             cancelled = true
         }
-    }, [importPending, contact, pgp, t])
+    }, [importPending, contact, messaging, t])
 
     useEffect(() => {
         if (!contact) {
@@ -180,9 +170,10 @@ export function ChatThreadWidget() {
         void Promise.all(
             inbound.map(async (m) => {
                 try {
-                    const r = await pgp.decryptAndVerify(
-                        m.armoredPayload,
-                        contact.publicKeyArmored,
+                    const r = await messaging.decryptIncoming(
+                        contact,
+                        m.channelPayload,
+                        m.cryptoProtocol,
                     )
                     return [
                         m.id,
@@ -201,27 +192,26 @@ export function ChatThreadWidget() {
         return () => {
             cancelled = true
         }
-    }, [messages, contact, pgp])
+    }, [messages, contact, messaging])
 
     useEffect(() => {
-        if (!selfPublicKey) {
-            setOutboundPreview({})
-            return
-        }
-        const outbound = messages.filter(
-            (m) => m.direction === "out" && m.outboundSelfArmored,
-        )
-        if (outbound.length === 0) {
+        const outbound = messages.filter((m) => m.direction === "out")
+        const withSelf = outbound.filter((m) => m.outboundSelfPayload)
+        if (withSelf.length === 0) {
             setOutboundPreview({})
             return
         }
         let cancelled = false
         void Promise.all(
-            outbound.map(async (m) => {
+            withSelf.map(async (m) => {
+                const selfPl = m.outboundSelfPayload
+                if (!selfPl) {
+                    return [m.id, { ok: false, err: "missing self payload" }] as const
+                }
                 try {
-                    const r = await pgp.decryptAndVerify(
-                        m.outboundSelfArmored!,
-                        selfPublicKey,
+                    const r = await messaging.decryptOutboundSelf(
+                        selfPl,
+                        m.cryptoProtocol,
                     )
                     return [
                         m.id,
@@ -244,7 +234,7 @@ export function ChatThreadWidget() {
         return () => {
             cancelled = true
         }
-    }, [messages, selfPublicKey, pgp])
+    }, [messages, messaging])
 
     const onEncrypt = async () => {
         if (!contactId || !contact) {
@@ -254,16 +244,12 @@ export function ChatThreadWidget() {
         setMessageQrPayload(null)
         setWarnLen(false)
         setToast(null)
-        const { armored, binary } = await pgp.encryptAndSignForContactBundle(
-            plain,
-            contact.publicKeyArmored,
-        )
-        const wrapped = wrapOpenPgpBinaryForMessageQr(binary)
-        setArmoredOut(armored)
-        setMessageQrPayload(wrapped)
-        await conv.saveOutboundArmored(contactId, armored, plain)
+        const bundle = await conv.encryptOutgoingBundle(contactId, plain)
+        setArmoredOut(bundle.channelStorage)
+        setMessageQrPayload(bundle.qrPayloadBinary)
+        await conv.saveOutboundBundle(contactId, bundle)
         await reload()
-        if (wrapped.byteLength > QR_MESSAGE_MAX_BYTES) {
+        if (bundle.qrPayloadBinary.byteLength > QR_MESSAGE_MAX_BYTES) {
             setWarnLen(true)
         }
     }
@@ -276,13 +262,18 @@ export function ChatThreadWidget() {
         setSigOk(null)
         setToast(null)
         try {
-            const { text, signaturesValid } = await pgp.decryptAndVerify(
+            const { text, signaturesValid } = await messaging.decryptIncoming(
+                contact,
                 pasteIn.trim(),
-                contact.publicKeyArmored,
+                contact.cryptoProtocol,
             )
             setDecrypted(text)
             setSigOk(signaturesValid)
-            await conv.saveInboundArmored(contact.id, pasteIn.trim())
+            await conv.saveInboundPayload(
+                contact.id,
+                pasteIn.trim(),
+                contact.cryptoProtocol,
+            )
             await reload()
             setPasteIn("")
         } catch (e) {
@@ -301,8 +292,13 @@ export function ChatThreadWidget() {
         }
         setToast(null)
         try {
-            const armored = await pgp.ciphertextToArmored(importPending.raw)
-            await conv.saveInboundArmored(contact.id, armored)
+            const normalized =
+                await messaging.normalizeInboundPayload(importPending.raw)
+            await conv.saveInboundPayload(
+                contact.id,
+                normalized.channelStorage,
+                normalized.cryptoProtocol,
+            )
             setImportPending(null)
             setImportDecryptPreview(null)
             setImportDecryptErr(null)
@@ -384,8 +380,9 @@ export function ChatThreadWidget() {
     }
 
     const renderStoredMessageBody = (m: MessagePlain) => {
+        const selfPayload = m.outboundSelfPayload ?? m.outboundSelfArmored
         if (m.direction === "out") {
-            if (!m.outboundSelfArmored) {
+            if (!selfPayload) {
                 return (
                     <p className="mt-1 text-sm text-muted-foreground">
                         {t("chat.outboundLegacyNoSelfCopy")}
@@ -446,7 +443,12 @@ export function ChatThreadWidget() {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between gap-2">
-                <h1 className="text-lg font-semibold">{contact.displayName}</h1>
+                <h1 className="text-lg font-semibold">
+                    {contact.displayName}
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        ({contact.cryptoProtocol})
+                    </span>
+                </h1>
                 <Link to="/" className="text-sm text-muted-foreground underline">
                     {t("chat.back")}
                 </Link>
@@ -643,6 +645,9 @@ export function ChatThreadWidget() {
                                 {m.direction === "out" ? "→" : "←"}
                             </span>{" "}
                             {new Date(m.createdAt).toLocaleString()}
+                            <span className="ml-1 text-[10px] uppercase text-muted-foreground">
+                                {m.cryptoProtocol}
+                            </span>
                             {renderStoredMessageBody(m)}
                         </li>
                     ))}

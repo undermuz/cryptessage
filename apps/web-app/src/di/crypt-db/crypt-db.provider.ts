@@ -4,6 +4,7 @@ import { CRYPT_DB_NAME, CRYPT_DB_VERSION } from "@/di/secure/constants"
 import { bytesToBase64, base64ToBytes } from "@/di/secure/encoding"
 import { decryptUtf8, encryptUtf8, type EncryptedBlob } from "@/di/secure/aes-gcm"
 import type { CryptDbService } from "./types"
+import { normalizeContact, normalizeMessage } from "./model-normalize"
 import type { ContactPlain, IdentityPlain, MessagePlain } from "./types-data"
 
 const STORE_META = "meta"
@@ -118,7 +119,7 @@ export class CryptDb implements CryptDbService {
         const out: ContactPlain[] = []
         for (const row of rows) {
             const json = await decryptUtf8(masterKey, row.blob)
-            out.push(JSON.parse(json) as ContactPlain)
+            out.push(normalizeContact(JSON.parse(json) as ContactPlain))
         }
         return out.sort((a, b) => b.createdAt - a.createdAt)
     }
@@ -155,7 +156,7 @@ export class CryptDb implements CryptDbService {
         const out: MessagePlain[] = []
         for (const row of rows) {
             const json = await decryptUtf8(masterKey, row.blob)
-            out.push(JSON.parse(json) as MessagePlain)
+            out.push(normalizeMessage(JSON.parse(json) as MessagePlain))
         }
         return out.sort((a, b) => a.createdAt - b.createdAt)
     }
@@ -186,7 +187,7 @@ export class CryptDb implements CryptDbService {
         const messages: MessagePlain[] = []
         for (const row of allMsgRows) {
             const json = await decryptUtf8(masterKey, row.blob)
-            messages.push(JSON.parse(json) as MessagePlain)
+            messages.push(normalizeMessage(JSON.parse(json) as MessagePlain))
         }
         return { contacts, messages, identity }
     }

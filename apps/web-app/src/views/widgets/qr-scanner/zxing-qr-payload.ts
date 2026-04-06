@@ -3,7 +3,11 @@ import {
     ResultMetadataType,
 } from "@zxing/library"
 
-import { isMessageQrWrapper } from "@/di/secure/message-qr-binary"
+import { isCompactVisitCardV1 } from "@/di/compact-crypto/visit-card"
+import {
+    isCompactMessageQrWrapper,
+    isMessageQrWrapper,
+} from "@/di/secure/message-qr-binary"
 import type { VisitCardRawPayload } from "@/di/openpgp-crypto/types"
 
 /** Same as binary visit card magic in openpgp provider (`CMV2`). */
@@ -21,7 +25,7 @@ function startsWithBinaryVisitMagic(bytes: Uint8Array): boolean {
 
 /**
  * ZXing QR: logical payload bytes are in `BYTE_SEGMENTS`, not `getRawBytes()`.
- * Return concatenated segments when they start our cryptessage binary wrappers (`CMV2` / `CMM1`);
+ * Return concatenated segments when they start our cryptessage binary wrappers (`CMV2`, compact visit v1, `CMM1`, `CMK1`);
  * otherwise `getText()` (legacy mixed-mode JSON QRs and armored ASCII QRs).
  */
 export function zxingCryptessagePayloadFromResult(
@@ -39,7 +43,12 @@ export function zxingCryptessagePayloadFromResult(
             out.set(seg, o)
             o += seg.byteLength
         }
-        if (startsWithBinaryVisitMagic(out) || isMessageQrWrapper(out)) {
+        if (
+            startsWithBinaryVisitMagic(out) ||
+            isMessageQrWrapper(out) ||
+            isCompactMessageQrWrapper(out) ||
+            isCompactVisitCardV1(out)
+        ) {
             return out
         }
     }

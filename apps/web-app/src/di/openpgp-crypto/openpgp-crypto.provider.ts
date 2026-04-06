@@ -6,7 +6,7 @@ import {
     CryptDbProvider,
     type CryptDbService,
 } from "@/di/crypt-db/types"
-import { unwrapOpenPgpBinaryFromMessageQr } from "@/di/secure/message-qr-binary"
+import { unwrapMessageQrPayload } from "@/di/secure/message-qr-binary"
 import type { IOpenPgpCryptoService } from "./types"
 
 const VISIT_CARD_JSON_VERSION = 1
@@ -379,9 +379,7 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
                       armoredMessage: ciphertext.trim(),
                   })
                 : await openpgp.readMessage({
-                      binaryMessage: unwrapOpenPgpBinaryFromMessageQr(
-                          ciphertext,
-                      ),
+                      binaryMessage: unwrapMessageQrPayload(ciphertext),
                   })
         const { data, signatures } = await openpgp.decrypt({
             message,
@@ -410,7 +408,7 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
             }
             return t
         }
-        const inner = unwrapOpenPgpBinaryFromMessageQr(ciphertext)
+        const inner = unwrapMessageQrPayload(ciphertext)
         const packetMsg = await openpgp.readMessage({
             binaryMessage: inner,
         })

@@ -6,6 +6,9 @@ import {
     CryptDbProvider,
     type CryptDbService,
 } from "@/di/crypt-db/types"
+import { encodeVisitCardV1 } from "@/di/compact-crypto/visit-card"
+import { generateCompactIdentitySecrets } from "@/di/compact-crypto/compact-identity"
+import { base64ToBytes } from "@/di/secure/encoding"
 import type { IIdentityService } from "./types"
 
 @injectable()
@@ -37,6 +40,22 @@ export class IdentityProvider implements IIdentityService {
         await this.db.saveIdentity(key, {
             publicKeyArmored: publicKey,
             privateKeyArmored: privateKey,
+            compactIdentity: generateCompactIdentitySecrets(),
+        })
+    }
+
+    public async ensureCompactIdentity(): Promise<void> {
+        const key = this.auth.getMasterKey()
+        const existing = await this.db.getIdentity(key)
+        if (!existing) {
+            return
+        }
+        if (existing.compactIdentity) {
+            return
+        }
+        await this.db.saveIdentity(key, {
+            ...existing,
+            compactIdentity: generateCompactIdentitySecrets(),
         })
     }
 
@@ -65,5 +84,17 @@ export class IdentityProvider implements IIdentityService {
             return namePart || "User"
         }
         return "User"
+    }
+
+    public async buildCompactVisitCard(displayName: string): Promise<Uint8Array> {
+        await this.ensureCompactIdentity()
+        const key = this.auth.getMasterKey()
+        const id = await this.db.getIdentity(key)
+        if (!id?.compactIdentity) {
+            throw new Error("No compact identity")
+        }
+        const xPub = base64ToBytes(id.compactIdentity.x25519PublicKeyB64)
+        const edPub = base64ToBytes(id.compactIdentity.ed25519PublicKeyB64)
+        return encodeVisitCardV1(displayName.trim() || "User", xPub, edPub)
     }
 }

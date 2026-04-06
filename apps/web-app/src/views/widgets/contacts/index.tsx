@@ -4,9 +4,19 @@ import { BrowserQRCodeReader } from "@zxing/browser"
 import { Button } from "@/views/ui/button"
 import { useT } from "@/di/react/hooks/useT"
 import { useDi } from "@/di/react/hooks/useDi"
+import type { CryptoProtocolId } from "@/di/crypt-db/crypto-protocol"
+import {
+    decodeVisitCardV1,
+    isCompactVisitCardV1,
+} from "@/di/compact-crypto/visit-card"
+import {
+    CryptoPrefsService,
+    type ICryptoPrefsService,
+} from "@/di/crypto-prefs/types"
 import {
     ConversationService,
     type IConversationService,
+    type VisitCardInterpretation,
 } from "@/di/conversation/types"
 import {
     OpenPgpCryptoService,
@@ -18,6 +28,7 @@ import {
     type IIdentityService,
 } from "@/di/identity/types"
 import type { ContactPlain } from "@/di/crypt-db/types-data"
+import { bytesToBase64, base64ToBytes } from "@/di/secure/encoding"
 import { QR_VISIT_CARD_MAX_BYTES } from "@/di/secure/constants"
 import {
     ExportQrBlock,
@@ -43,6 +54,19 @@ type QrPreviewInfo = {
     detail: string
     displayName: string | null
     publicKeyArmored: string | null
+    detectedProtocol: CryptoProtocolId | null
+    compactKeyPreview: string | null
+}
+
+function toCompactBytes(raw: VisitCardRawPayload): Uint8Array | null {
+    if (typeof raw !== "string") {
+        return raw
+    }
+    try {
+        return base64ToBytes(raw.trim())
+    } catch {
+        return null
+    }
 }
 
 export function ContactsWidget() {
@@ -50,6 +74,7 @@ export function ContactsWidget() {
     const conv = useDi<IConversationService>(ConversationService)
     const pgp = useDi<IOpenPgpCryptoService>(OpenPgpCryptoService)
     const identity = useDi<IIdentityService>(IdentityService)
+    const cryptoPrefs = useDi<ICryptoPrefsService>(CryptoPrefsService)
 
     const [contacts, setContacts] = useState<ContactPlain[]>([])
     const [paste, setPaste] = useState("")
@@ -66,6 +91,8 @@ export function ContactsWidget() {
     } | null>(null)
     const [preview, setPreview] = useState<QrPreviewInfo | null>(null)
     const [previewLoading, setPreviewLoading] = useState(false)
+    const [visitInterpretation, setVisitInterpretation] =
+        useState<VisitCardInterpretation>("auto")
 
     const [pasteBusy, setPasteBusy] = useState(false)
 
@@ -84,7 +111,57 @@ export function ContactsWidget() {
     }
 
     const buildPreview = useCallback(
-        async (raw: VisitCardRawPayload): Promise<QrPreviewInfo> => {
+        async (
+            raw: VisitCardRawPayload,
+            mode: VisitCardInterpretation,
+        ): Promise<QrPreviewInfo> => {
+            const compactFail = (detail: string): QrPreviewInfo => ({
+                valid: false,
+                detail,
+                displayName: null,
+                publicKeyArmored: null,
+                detectedProtocol: null,
+                compactKeyPreview: null,
+            })
+
+            if (mode !== "openpgp") {
+                let bytes: Uint8Array | null =
+                    typeof raw === "string" ? null : raw
+                if (mode === "compact_v1" && typeof raw === "string") {
+                    try {
+                        bytes = base64ToBytes(raw.trim())
+                    } catch {
+                        return compactFail(t("contacts.reviewInvalidCompactPaste"))
+                    }
+                } else if (mode === "auto") {
+                    if (typeof raw !== "string") {
+                        bytes = raw
+                    } else {
+                        bytes = toCompactBytes(raw)
+                    }
+                }
+                if (
+                    bytes &&
+                    isCompactVisitCardV1(bytes) &&
+                    (mode === "compact_v1" || mode === "auto")
+                ) {
+                    const v = decodeVisitCardV1(bytes)
+                    return {
+                        valid: true,
+                        detail: t("contacts.reviewCompactValid"),
+                        displayName: v.displayName.trim() || null,
+                        publicKeyArmored: null,
+                        detectedProtocol: "compact_v1",
+                        compactKeyPreview:
+                            bytesToBase64(v.ed25519PublicKey).slice(0, 16) +
+                            "…",
+                    }
+                }
+                if (mode === "compact_v1") {
+                    return compactFail(t("contacts.reviewInvalidCompact"))
+                }
+            }
+
             try {
                 const parsed = await pgp.parseVisitCard(raw)
                 await pgp.validatePublicKeyArmored(parsed.publicKeyArmored)
@@ -93,6 +170,8 @@ export function ContactsWidget() {
                     detail: t("contacts.reviewKeyValid"),
                     displayName: parsed.displayName.trim() || null,
                     publicKeyArmored: parsed.publicKeyArmored.trim(),
+                    detectedProtocol: "openpgp",
+                    compactKeyPreview: null,
                 }
             } catch (e) {
                 return {
@@ -100,6 +179,8 @@ export function ContactsWidget() {
                     detail: e instanceof Error ? e.message : String(e),
                     displayName: null,
                     publicKeyArmored: null,
+                    detectedProtocol: null,
+                    compactKeyPreview: null,
                 }
             }
         },
@@ -115,7 +196,7 @@ export function ContactsWidget() {
         let cancelled = false
         setPreviewLoading(true)
         setPreview(null)
-        void buildPreview(pendingQr.raw).then((info) => {
+        void buildPreview(pendingQr.raw, visitInterpretation).then((info) => {
             if (!cancelled) {
                 setPreview(info)
                 setPreviewLoading(false)
@@ -124,7 +205,7 @@ export function ContactsWidget() {
         return () => {
             cancelled = true
         }
-    }, [pendingQr, buildPreview])
+    }, [pendingQr, buildPreview, visitInterpretation])
 
     const reload = async () => {
         setContacts(await conv.listContacts())
@@ -137,6 +218,14 @@ export function ContactsWidget() {
 
     const buildCard = async () => {
         const name = await identity.getSelfDisplayName()
+        const format = await cryptoPrefs.getDefaultVisitCardFormat()
+        if (format === "compact_v1") {
+            await identity.ensureCompactIdentity()
+            const raw = await identity.buildCompactVisitCard(name)
+            setCardPayload(raw)
+            setCardJson(bytesToBase64(raw))
+            return
+        }
         const raw = await pgp.buildVisitCardBinary(name)
         const json = await pgp.buildVisitCard(name)
         setCardPayload(raw)
@@ -153,12 +242,16 @@ export function ContactsWidget() {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- toggle + DI singletons
     }, [showMyQr])
 
-    const addFromRaw = async (raw: VisitCardRawPayload): Promise<boolean> => {
+    const addFromRaw = async (
+        raw: VisitCardRawPayload,
+        interpretation: VisitCardInterpretation,
+    ): Promise<boolean> => {
         setMsg(null)
         try {
             await conv.addContactFromVisitCard(
                 typeof raw === "string" ? raw.trim() : raw,
                 nameHint.trim() || undefined,
+                interpretation,
             )
             setPaste("")
             setNameHint("")
@@ -222,7 +315,7 @@ export function ContactsWidget() {
         if (!pendingQr) {
             return
         }
-        const ok = await addFromRaw(pendingQr.raw)
+        const ok = await addFromRaw(pendingQr.raw, visitInterpretation)
         if (ok) {
             discardPendingQr()
         }
@@ -246,7 +339,8 @@ export function ContactsWidget() {
                     cardPayload ? (
                         <p className="text-xs text-muted-foreground">
                             {t("qr.visitCardBinaryMax")}:{" "}
-                            {QR_VISIT_CARD_MAX_BYTES}
+                            {QR_VISIT_CARD_MAX_BYTES}.{" "}
+                            {t("contacts.visitCardUsesPrefs")}
                         </p>
                     ) : undefined
                 }
@@ -267,7 +361,7 @@ export function ContactsWidget() {
                 armoredPlaceholder="JSON visit card, or full -----BEGIN PGP PUBLIC KEY BLOCK----- (not fingerprint hex)"
                 armoredValue={paste}
                 onArmoredChange={setPaste}
-                onArmoredSubmit={() => void addFromRaw(paste)}
+                onArmoredSubmit={() => void addFromRaw(paste, visitInterpretation)}
                 armoredSubmitDisabled={!paste.trim()}
                 pasteBusy={pasteBusy}
                 scanOpen={scan}
@@ -300,6 +394,29 @@ export function ContactsWidget() {
                             maxQrBytes={QR_VISIT_CARD_MAX_BYTES}
                             tooLongHint={t("contacts.reviewQrTooLong")}
                         >
+                            <label className="mb-2 block text-xs text-muted-foreground">
+                                {t("contacts.visitInterpretMode")}
+                                <select
+                                    className="mt-1 w-full max-w-xs rounded-md border border-input bg-background px-2 py-1 text-sm"
+                                    value={visitInterpretation}
+                                    onChange={(e) =>
+                                        setVisitInterpretation(
+                                            e.target
+                                                .value as VisitCardInterpretation,
+                                        )
+                                    }
+                                >
+                                    <option value="auto">
+                                        {t("contacts.visitInterpretAuto")}
+                                    </option>
+                                    <option value="openpgp">
+                                        {t("contacts.visitInterpretOpenpgp")}
+                                    </option>
+                                    <option value="compact_v1">
+                                        {t("contacts.visitInterpretCompact")}
+                                    </option>
+                                </select>
+                            </label>
                             {previewLoading && (
                                 <p className="text-muted-foreground">
                                     {t("common.loading")}
@@ -318,6 +435,13 @@ export function ContactsWidget() {
                                             ? t("contacts.reviewValid")
                                             : t("contacts.reviewInvalid")}
                                     </p>
+                                    {preview.detectedProtocol && (
+                                        <p className="text-xs text-muted-foreground">
+                                            {t("contacts.reviewProtocol", {
+                                                p: preview.detectedProtocol,
+                                            })}
+                                        </p>
+                                    )}
                                     {preview.displayName && (
                                         <p>
                                             <span className="text-muted-foreground">
@@ -330,6 +454,12 @@ export function ContactsWidget() {
                                     <p className="whitespace-pre-wrap break-words text-muted-foreground">
                                         {preview.detail}
                                     </p>
+                                    {preview.compactKeyPreview && (
+                                        <p className="text-xs text-muted-foreground">
+                                            {t("contacts.reviewCompactPub")}:{" "}
+                                            {preview.compactKeyPreview}
+                                        </p>
+                                    )}
                                     {preview.publicKeyArmored && (
                                         <label className="block text-xs text-muted-foreground">
                                             {t("contacts.reviewPublicKey")}
@@ -383,7 +513,12 @@ export function ContactsWidget() {
                                 key={c.id}
                                 className="rounded border border-border px-2 py-1"
                             >
-                                {c.displayName}
+                                <span className="font-medium">
+                                    {c.displayName}
+                                </span>
+                                <span className="ml-2 text-xs text-muted-foreground">
+                                    ({c.cryptoProtocol})
+                                </span>
                             </li>
                         ))}
                     </ul>

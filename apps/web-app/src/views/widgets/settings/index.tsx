@@ -5,7 +5,12 @@ import { useTheme, type ThemePreference } from "@/app/theme"
 import { Button } from "@/views/ui/button"
 import { useT } from "@/di/react/hooks/useT"
 import { useDi } from "@/di/react/hooks/useDi"
+import type { CryptoProtocolId } from "@/di/crypt-db/crypto-protocol"
 import { AuthService, type IAuthService } from "@/di/auth/types"
+import {
+    CryptoPrefsService,
+    type ICryptoPrefsService,
+} from "@/di/crypto-prefs/types"
 import {
     IdentityService,
     type IIdentityService,
@@ -21,9 +26,13 @@ export function SettingsWidget() {
     const navigate = useNavigate()
     const auth = useDi<IAuthService>(AuthService)
     const identity = useDi<IIdentityService>(IdentityService)
+    const cryptoPrefs = useDi<ICryptoPrefsService>(CryptoPrefsService)
     const backup = useDi<IVaultBackupService>(VaultBackupService)
     const [fp, setFp] = useState("")
     const [publicArmored, setPublicArmored] = useState("")
+    const [cryptErr, setCryptErr] = useState<string | null>(null)
+    const [visitCardFormat, setVisitCardFormat] =
+        useState<CryptoProtocolId>("openpgp")
     const [err, setErr] = useState<string | null>(null)
 
     useEffect(() => {
@@ -38,8 +47,13 @@ export function SettingsWidget() {
             } catch {
                 setPublicArmored("")
             }
+            try {
+                setVisitCardFormat(await cryptoPrefs.getDefaultVisitCardFormat())
+            } catch {
+                setVisitCardFormat("openpgp")
+            }
         })()
-    }, [identity])
+    }, [identity, cryptoPrefs])
 
     const onLock = () => {
         auth.lock()
@@ -81,6 +95,45 @@ export function SettingsWidget() {
                     <option value="light">{t("settings.themeLight")}</option>
                     <option value="dark">{t("settings.themeDark")}</option>
                 </select>
+            </section>
+
+            <section className="space-y-2 rounded-lg border border-border p-4">
+                <h2 className="text-sm font-medium">
+                    {t("settings.visitCardFormat")}
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                    {t("settings.visitCardFormatHint")}
+                </p>
+                <select
+                    className="w-full max-w-xs rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={visitCardFormat}
+                    onChange={(e) => {
+                        const v = e.target.value as CryptoProtocolId
+                        setVisitCardFormat(v)
+                        void (async () => {
+                            setCryptErr(null)
+                            try {
+                                if (v === "compact_v1") {
+                                    await identity.ensureCompactIdentity()
+                                }
+                                await cryptoPrefs.setDefaultVisitCardFormat(v)
+                            } catch (ex) {
+                                const reason =
+                                    ex instanceof Error ? ex.message : String(ex)
+                                setCryptErr(reason)
+                            }
+                        })()
+                    }}
+                    aria-label={t("settings.visitCardFormat")}
+                >
+                    <option value="openpgp">{t("settings.visitCardOpenpgp")}</option>
+                    <option value="compact_v1">
+                        {t("settings.visitCardCompact")}
+                    </option>
+                </select>
+                {cryptErr && (
+                    <p className="text-sm text-destructive">{cryptErr}</p>
+                )}
             </section>
 
             <section className="space-y-2 rounded-lg border border-border p-4">
