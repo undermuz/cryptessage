@@ -46,6 +46,7 @@ export class ConversationProvider implements IConversationService {
             if (!isCompactVisitCardV1(bytes)) {
                 return null
             }
+
             const v = decodeVisitCardV1(bytes)
             return {
                 id: crypto.randomUUID(),
@@ -64,22 +65,28 @@ export class ConversationProvider implements IConversationService {
             if (typeof rawCard === "string") {
                 const bytes = base64ToBytes(rawCard.trim())
                 const c = tryCompactBytes(bytes)
+
                 if (!c) {
                     throw new Error("Invalid compact visit card")
                 }
+
                 await this.db.saveContact(key, c)
                 return c
             }
+
             const c = tryCompactBytes(rawCard)
+
             if (!c) {
                 throw new Error("Invalid compact visit card")
             }
+
             await this.db.saveContact(key, c)
             return c
         }
 
         if (interpretation !== "openpgp" && typeof rawCard !== "string") {
             const c = tryCompactBytes(rawCard)
+
             if (c) {
                 await this.db.saveContact(key, c)
                 return c
@@ -89,6 +96,7 @@ export class ConversationProvider implements IConversationService {
         if (interpretation === "auto" && typeof rawCard === "string") {
             try {
                 const c = tryCompactBytes(base64ToBytes(rawCard.trim()))
+
                 if (c) {
                     await this.db.saveContact(key, c)
                     return c
@@ -132,9 +140,11 @@ export class ConversationProvider implements IConversationService {
         plaintext: string,
     ): Promise<EncryptedOutgoingBundle> {
         const contact = await this.getContact(contactId)
+
         if (!contact) {
             throw new Error("Contact not found")
         }
+
         return this.messaging.encryptOutgoing(contact, plaintext)
     }
 
@@ -144,9 +154,11 @@ export class ConversationProvider implements IConversationService {
     ): Promise<MessagePlain> {
         const key = this.auth.getMasterKey()
         const contact = await this.getContact(contactId)
+
         if (!contact) {
             throw new Error("Contact not found")
         }
+
         const m: MessagePlain = {
             id: crypto.randomUUID(),
             contactId,

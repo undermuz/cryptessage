@@ -21,6 +21,7 @@ export function resolveTheme(preference: ThemePreference): "light" | "dark" {
             ? "dark"
             : "light"
     }
+
     return preference
 }
 
@@ -34,17 +35,20 @@ export function applyThemeClass(preference: ThemePreference): "light" | "dark" {
 function readStoredPreference(): ThemePreference {
     try {
         const v = localStorage.getItem(THEME_STORAGE_KEY)
+
         if (v === "light" || v === "dark" || v === "system") {
             return v
         }
     } catch {
         /* private mode, etc. */
     }
+
     return "system"
 }
 
 function syncThemeColorMeta(resolved: "light" | "dark"): void {
     const meta = document.querySelector('meta[name="theme-color"]')
+
     if (meta) {
         meta.setAttribute(
             "content",
@@ -71,6 +75,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     const setPreference = useCallback((p: ThemePreference) => {
         setPreferenceState(p)
+
         try {
             localStorage.setItem(THEME_STORAGE_KEY, p)
         } catch {
@@ -88,12 +93,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         if (preference !== "system") {
             return
         }
+
         const mq = window.matchMedia("(prefers-color-scheme: dark)")
+
         const onChange = () => {
             const r = applyThemeClass("system")
             setResolved(r)
             syncThemeColorMeta(r)
         }
+
         mq.addEventListener("change", onChange)
         return () => mq.removeEventListener("change", onChange)
     }, [preference])
@@ -114,8 +122,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
 export function useTheme(): ThemeContextValue {
     const ctx = useContext(ThemeContext)
+
     if (!ctx) {
         throw new Error("useTheme must be used within ThemeProvider")
     }
+
     return ctx
 }

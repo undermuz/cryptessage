@@ -62,6 +62,7 @@ function toCompactBytes(raw: VisitCardRawPayload): Uint8Array | null {
     if (typeof raw !== "string") {
         return raw
     }
+
     try {
         return base64ToBytes(raw.trim())
     } catch {
@@ -127,6 +128,7 @@ export function ContactsWidget() {
             if (mode !== "openpgp") {
                 let bytes: Uint8Array | null =
                     typeof raw === "string" ? null : raw
+
                 if (mode === "compact_v1" && typeof raw === "string") {
                     try {
                         bytes = base64ToBytes(raw.trim())
@@ -140,6 +142,7 @@ export function ContactsWidget() {
                         bytes = toCompactBytes(raw)
                     }
                 }
+
                 if (
                     bytes &&
                     isCompactVisitCardV1(bytes) &&
@@ -157,6 +160,7 @@ export function ContactsWidget() {
                             "…",
                     }
                 }
+
                 if (mode === "compact_v1") {
                     return compactFail(t("contacts.reviewInvalidCompact"))
                 }
@@ -193,6 +197,7 @@ export function ContactsWidget() {
             setPreviewLoading(false)
             return
         }
+
         let cancelled = false
         setPreviewLoading(true)
         setPreview(null)
@@ -202,6 +207,7 @@ export function ContactsWidget() {
                 setPreviewLoading(false)
             }
         })
+
         return () => {
             cancelled = true
         }
@@ -219,6 +225,7 @@ export function ContactsWidget() {
     const buildCard = async () => {
         const name = await identity.getSelfDisplayName()
         const format = await cryptoPrefs.getDefaultVisitCardFormat()
+
         if (format === "compact_v1") {
             await identity.ensureCompactIdentity()
             const raw = await identity.buildCompactVisitCard(name)
@@ -226,6 +233,7 @@ export function ContactsWidget() {
             setCardJson(bytesToBase64(raw))
             return
         }
+
         const raw = await pgp.buildVisitCardBinary(name)
         const json = await pgp.buildVisitCard(name)
         setCardPayload(raw)
@@ -238,6 +246,7 @@ export function ContactsWidget() {
             setCardJson(null)
             return
         }
+
         void buildCard()
         // eslint-disable-next-line react-hooks/exhaustive-deps -- toggle + DI singletons
     }, [showMyQr])
@@ -247,6 +256,7 @@ export function ContactsWidget() {
         interpretation: VisitCardInterpretation,
     ): Promise<boolean> => {
         setMsg(null)
+
         try {
             await conv.addContactFromVisitCard(
                 typeof raw === "string" ? raw.trim() : raw,
@@ -274,13 +284,16 @@ export function ContactsWidget() {
     const onPasteQrFromClipboard = async () => {
         setPasteBusy(true)
         setMsg(null)
+
         try {
             const reader = new BrowserQRCodeReader()
             const payload = await decodeQrFromClipboardImage(reader)
+
             if (!payload) {
                 setMsg(t("contacts.pasteQrNoCode"))
                 return
             }
+
             setPendingQr({ raw: payload, source: "clipboard" })
         } catch (e) {
             const reason = e instanceof Error ? e.message : String(e)
@@ -293,14 +306,17 @@ export function ContactsWidget() {
     const onPickQrImageFile = (file: File) => {
         setPasteBusy(true)
         setMsg(null)
+
         void (async () => {
             try {
                 const reader = new BrowserQRCodeReader()
                 const payload = await decodeQrFromImageBlob(reader, file)
+
                 if (!payload) {
                     setMsg(t("contacts.pasteQrNoCode"))
                     return
                 }
+
                 setPendingQr({ raw: payload, source: "file" })
             } catch (e) {
                 const reason = e instanceof Error ? e.message : String(e)
@@ -315,7 +331,9 @@ export function ContactsWidget() {
         if (!pendingQr) {
             return
         }
+
         const ok = await addFromRaw(pendingQr.raw, visitInterpretation)
+
         if (ok) {
             discardPendingQr()
         }
@@ -385,8 +403,8 @@ export function ContactsWidget() {
                                 pendingQr.source === "camera"
                                     ? t("contacts.reviewSourceCamera")
                                     : pendingQr.source === "file"
-                                      ? t("contacts.reviewSourceFile")
-                                      : t("contacts.reviewSourceClipboard")
+                                        ? t("contacts.reviewSourceFile")
+                                        : t("contacts.reviewSourceClipboard")
                             } · ${t("contacts.reviewPayloadSize", {
                                 n: visitPayloadByteLength(pendingQr.raw),
                             })}`}

@@ -61,6 +61,7 @@ export function QrScannerPanel({ onResult, onClose }: Props) {
                 if (cancelled) {
                     return
                 }
+
                 setDevices(list)
                 appendLog("cameras enumerated", {
                     count: list.length,
@@ -73,6 +74,7 @@ export function QrScannerPanel({ onResult, onClose }: Props) {
                     error: e instanceof Error ? e.message : String(e),
                 })
             })
+
         return () => {
             cancelled = true
         }
@@ -80,9 +82,11 @@ export function QrScannerPanel({ onResult, onClose }: Props) {
 
     useEffect(() => {
         const video = videoRef.current
+
         if (!video) {
             return
         }
+
         const reader = new BrowserQRCodeReader()
         let controls: { stop: () => void } | null = null
         let cancelled = false
@@ -116,23 +120,29 @@ export function QrScannerPanel({ onResult, onClose }: Props) {
                 if (cancelled) {
                     return
                 }
+
                 if (result) {
                     handleDecoded(zxingCryptessagePayloadFromResult(result), () =>
                         c?.stop(),
                     )
                     return
                 }
+
                 if (!err) {
                     return
                 }
+
                 if (err instanceof NotFoundException) {
                     const now = Date.now()
+
                     if (now - lastNotFoundLogAt.current >= 2500) {
                         lastNotFoundLogAt.current = now
                         appendLog("frame decoded: no QR in image (NotFound)")
                     }
+
                     return
                 }
+
                 appendLog("decode error", {
                     name: err instanceof Error ? err.name : typeof err,
                     message: String(err),

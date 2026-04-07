@@ -25,9 +25,11 @@ export class CryptoPrefsProvider implements ICryptoPrefsService {
     public async getDefaultVisitCardFormat(): Promise<CryptoProtocolId> {
         const mk = this.auth.getMasterKey()
         const blob = await this.db.readMetaEncrypted(META_KEY)
+
         if (!blob) {
             return DEFAULT_CRYPTO_PROTOCOL
         }
+
         const raw = await decryptUtf8(mk, blob)
         const j = JSON.parse(raw) as PrefsJson
         return j.defaultVisitCardFormat === "compact_v1"

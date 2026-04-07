@@ -59,8 +59,8 @@ export function ExportQrBlock({
         typeof armoredText === "string"
             ? armoredText
             : armoredText == null
-              ? ""
-              : String(armoredText)
+                ? ""
+                : String(armoredText)
 
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const [qrReady, setQrReady] = useState(false)
@@ -77,16 +77,19 @@ export function ExportQrBlock({
 
     const copyQrImage = () => {
         const canvas = canvasRef.current
+
         if (!canvas || !qrReady) {
             onNotify(labels.copyQrUnavailable)
             return
         }
+
         onNotify(null)
         canvas.toBlob(async (blob) => {
             if (!blob || !navigator.clipboard?.write) {
                 onNotify(labels.copyQrFail("clipboard"))
                 return
             }
+
             try {
                 await navigator.clipboard.write([
                     new ClipboardItem({ "image/png": blob }),
@@ -101,21 +104,26 @@ export function ExportQrBlock({
 
     const shareQrImage = () => {
         const canvas = canvasRef.current
+
         if (!canvas || !qrReady) {
             onNotify(labels.shareUnavailable)
             return
         }
+
         onNotify(null)
         canvas.toBlob(async (blob) => {
             if (!blob) {
                 onNotify(labels.shareFail("empty image"))
                 return
             }
+
             const file = new File([blob], shareFileName, { type: "image/png" })
+
             if (!navigator.share) {
                 onNotify(labels.shareUnavailable)
                 return
             }
+
             if (
                 typeof navigator.canShare === "function" &&
                 !navigator.canShare({ files: [file] })
@@ -123,6 +131,7 @@ export function ExportQrBlock({
                 onNotify(labels.shareUnavailable)
                 return
             }
+
             try {
                 await navigator.share({
                     files: [file],
@@ -132,6 +141,7 @@ export function ExportQrBlock({
                 if (e instanceof Error && e.name === "AbortError") {
                     return
                 }
+
                 const reason = e instanceof Error ? e.message : String(e)
                 onNotify(labels.shareFail(reason))
             }
@@ -140,6 +150,7 @@ export function ExportQrBlock({
 
     const copyArmored = async () => {
         onNotify(null)
+
         try {
             await navigator.clipboard.writeText(armoredStr)
             onNotify(labels.copyArmoredOk)

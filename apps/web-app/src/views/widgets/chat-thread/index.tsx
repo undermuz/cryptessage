@@ -1,8 +1,14 @@
-import { useEffect, useState } from "react"
+import {
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+} from "react"
 import { Link, useParams } from "@tanstack/react-router"
 import { BrowserQRCodeReader } from "@zxing/browser"
+import type { BidirectionalListProps, BidirectionalListRef } from "broad-infinite-list/react"
+import { useNextTickLayout } from "use-next-tick"
 
-import { Button } from "@/views/ui/button"
 import { useT } from "@/di/react/hooks/useT"
 import { useDi } from "@/di/react/hooks/useDi"
 import {
@@ -16,45 +22,37 @@ import {
 import type { VisitCardRawPayload } from "@/di/openpgp-crypto/types"
 import type { ContactPlain, MessagePlain } from "@/di/crypt-db/types-data"
 import { QR_MESSAGE_MAX_BYTES } from "@/di/secure/constants"
-import {
-    ExportQrBlock,
-    type ExportQrLabels,
-} from "@/views/widgets/qr-io/export-qr-block"
-import { ImportQrBlock } from "@/views/widgets/qr-io/import-qr-block"
-import { ImportQrPreviewShell } from "@/views/widgets/qr-io/import-qr-preview-shell"
+import type { ExportQrLabels } from "@/views/widgets/qr-io/export-qr-block"
 import {
     decodeQrFromClipboardImage,
     decodeQrFromImageBlob,
 } from "@/views/widgets/qr-scanner/clipboard-qr"
 
-type ImportSource = "camera" | "clipboard" | "file"
-
-function payloadByteLength(raw: VisitCardRawPayload): number {
-    return typeof raw === "string"
-        ? new TextEncoder().encode(raw).length
-        : raw.byteLength
-}
-
-function isCiphertextForRecipientNotSelf(errMsg: string): boolean {
-    return /no decryption key packets found/i.test(errMsg)
-}
+import { ChatReceiveEncryptedDialog } from "./chat-receive-encrypted-dialog"
+import { ChatSendEncryptedDialog } from "./chat-send-encrypted-dialog"
+import { ChatThreadComposer } from "./chat-thread-composer"
+import { ChatThreadHeader } from "./chat-thread-header"
+import { ChatThreadMessageList } from "./chat-thread-message-list"
+import { PAGE_SIZE, VIEW_COUNT } from "./constants"
+import type { ImportSource } from "./types"
+import { isCiphertextForRecipientNotSelf } from "./utils"
 
 export function ChatThreadWidget() {
     const t = useT()
+    const nextTick = useNextTickLayout()
     const { contactId } = useParams({ from: "/authed/chat/$contactId" })
     const conv = useDi<IConversationService>(ConversationService)
     const messaging = useDi<IMessagingCryptoService>(MessagingCryptoService)
 
     const [contact, setContact] = useState<ContactPlain | null>(null)
-    const [messages, setMessages] = useState<MessagePlain[]>([])
+    const [fullMessages, setFullMessages] = useState<MessagePlain[]>([])
+    const [listItems, setListItems] = useState<MessagePlain[]>([])
     const [plain, setPlain] = useState("")
     const [armoredOut, setArmoredOut] = useState("")
     const [messageQrPayload, setMessageQrPayload] = useState<Uint8Array | null>(
         null,
     )
     const [pasteIn, setPasteIn] = useState("")
-    const [decrypted, setDecrypted] = useState("")
-    const [sigOk, setSigOk] = useState<boolean | null>(null)
     const [warnLen, setWarnLen] = useState(false)
     const [toast, setToast] = useState<string | null>(null)
 
@@ -74,6 +72,11 @@ export function ChatThreadWidget() {
     )
     const [pasteQrBusy, setPasteQrBusy] = useState(false)
 
+    const [sendModalOpen, setSendModalOpen] = useState(false)
+    const [receiveModalOpen, setReceiveModalOpen] = useState(false)
+    const [encryptBusy, setEncryptBusy] = useState(false)
+    const [listDisable, setListDisable] = useState(true)
+
     const [inboundPreview, setInboundPreview] = useState<
         Record<
             string,
@@ -90,13 +93,23 @@ export function ChatThreadWidget() {
         >
     >({})
 
+    const listRef = useRef<BidirectionalListRef<MessagePlain>>(null)
+
     const reload = async () => {
         if (!contactId) {
             return
         }
+
+        setListDisable(true)
         const c = await conv.getContact(contactId)
         setContact(c)
-        setMessages(await conv.listMessages(contactId))
+        const all = await conv.listMessages(contactId)
+        setFullMessages(all)
+        setListItems(all.slice(-VIEW_COUNT))
+        nextTick(() => {
+            listRef.current?.scrollToBottom("instant")
+            setListDisable(false)
+        })
     }
 
     useEffect(() => {
@@ -117,6 +130,7 @@ export function ChatThreadWidget() {
             setImportDecryptErr(null)
             return
         }
+
         let cancelled = false
         setImportDecryptLoading(true)
         setImportDecryptPreview(null)
@@ -151,6 +165,7 @@ export function ChatThreadWidget() {
                     setImportDecryptLoading(false)
                 }
             })
+
         return () => {
             cancelled = true
         }
@@ -161,11 +176,14 @@ export function ChatThreadWidget() {
             setInboundPreview({})
             return
         }
-        const inbound = messages.filter((m) => m.direction === "in")
+
+        const inbound = fullMessages.filter((m) => m.direction === "in")
+
         if (inbound.length === 0) {
             setInboundPreview({})
             return
         }
+
         let cancelled = false
         void Promise.all(
             inbound.map(async (m) => {
@@ -189,25 +207,30 @@ export function ChatThreadWidget() {
                 setInboundPreview(Object.fromEntries(entries))
             }
         })
+
         return () => {
             cancelled = true
         }
-    }, [messages, contact, messaging])
+    }, [fullMessages, contact, messaging])
 
     useEffect(() => {
-        const outbound = messages.filter((m) => m.direction === "out")
+        const outbound = fullMessages.filter((m) => m.direction === "out")
         const withSelf = outbound.filter((m) => m.outboundSelfPayload)
+
         if (withSelf.length === 0) {
             setOutboundPreview({})
             return
         }
+
         let cancelled = false
         void Promise.all(
             withSelf.map(async (m) => {
                 const selfPl = m.outboundSelfPayload
+
                 if (!selfPl) {
                     return [m.id, { ok: false, err: "missing self payload" }] as const
                 }
+
                 try {
                     const r = await messaging.decryptOutboundSelf(
                         selfPl,
@@ -231,15 +254,17 @@ export function ChatThreadWidget() {
                 setOutboundPreview(Object.fromEntries(entries))
             }
         })
+
         return () => {
             cancelled = true
         }
-    }, [messages, messaging])
+    }, [fullMessages, messaging])
 
     const onEncrypt = async () => {
         if (!contactId || !contact) {
             return
         }
+
         setArmoredOut("")
         setMessageQrPayload(null)
         setWarnLen(false)
@@ -249,6 +274,8 @@ export function ChatThreadWidget() {
         setMessageQrPayload(bundle.qrPayloadBinary)
         await conv.saveOutboundBundle(contactId, bundle)
         await reload()
+        setPlain("")
+
         if (bundle.qrPayloadBinary.byteLength > QR_MESSAGE_MAX_BYTES) {
             setWarnLen(true)
         }
@@ -258,17 +285,15 @@ export function ChatThreadWidget() {
         if (!contact) {
             return
         }
-        setDecrypted("")
-        setSigOk(null)
+
         setToast(null)
+
         try {
-            const { text, signaturesValid } = await messaging.decryptIncoming(
+            await messaging.decryptIncoming(
                 contact,
                 pasteIn.trim(),
                 contact.cryptoProtocol,
             )
-            setDecrypted(text)
-            setSigOk(signaturesValid)
             await conv.saveInboundPayload(
                 contact.id,
                 pasteIn.trim(),
@@ -276,6 +301,7 @@ export function ChatThreadWidget() {
             )
             await reload()
             setPasteIn("")
+            setToast(t("chat.saveInboundOk"))
         } catch (e) {
             const raw = e instanceof Error ? e.message : String(e)
             setToast(
@@ -290,7 +316,9 @@ export function ChatThreadWidget() {
         if (!importPending || !contact) {
             return
         }
+
         setToast(null)
+
         try {
             const normalized =
                 await messaging.normalizeInboundPayload(importPending.raw)
@@ -303,6 +331,7 @@ export function ChatThreadWidget() {
             setImportDecryptPreview(null)
             setImportDecryptErr(null)
             await reload()
+            setReceiveModalOpen(false)
             setToast(t("chat.saveInboundOk"))
         } catch (e) {
             const reason = e instanceof Error ? e.message : String(e)
@@ -313,13 +342,16 @@ export function ChatThreadWidget() {
     const onPasteMessageQrFromClipboard = async () => {
         setPasteQrBusy(true)
         setToast(null)
+
         try {
             const reader = new BrowserQRCodeReader()
             const payload = await decodeQrFromClipboardImage(reader)
+
             if (!payload) {
                 setToast(t("contacts.pasteQrNoCode"))
                 return
             }
+
             setImportPending({ raw: payload, source: "clipboard" })
         } catch (e) {
             const reason = e instanceof Error ? e.message : String(e)
@@ -332,14 +364,17 @@ export function ChatThreadWidget() {
     const onPickMessageQrFromFile = (file: File) => {
         setPasteQrBusy(true)
         setToast(null)
+
         void (async () => {
             try {
                 const reader = new BrowserQRCodeReader()
                 const payload = await decodeQrFromImageBlob(reader, file)
+
                 if (!payload) {
                     setToast(t("contacts.pasteQrNoCode"))
                     return
                 }
+
                 setImportPending({ raw: payload, source: "file" })
             } catch (e) {
                 const reason = e instanceof Error ? e.message : String(e)
@@ -349,6 +384,79 @@ export function ChatThreadWidget() {
             }
         })()
     }
+
+    const handleLoadMore: BidirectionalListProps<MessagePlain>["onLoadMore"] =
+        useCallback(
+            async (direction, refItem) => {
+                await new Promise((r) =>
+                    setTimeout(r, direction === "down" ? 80 : 200),
+                )
+                const idx = fullMessages.findIndex((m) => m.id === refItem.id)
+
+                if (idx === -1) {
+                    return []
+                }
+
+                if (direction === "up") {
+                    const start = Math.max(0, idx - PAGE_SIZE)
+                    return fullMessages.slice(start, idx)
+                }
+
+                const end = Math.min(fullMessages.length, idx + PAGE_SIZE + 1)
+                return fullMessages.slice(idx + 1, end)
+            },
+            [fullMessages],
+        )
+
+    const hasPrevious =
+        listItems.length > 0 &&
+        listItems[0]?.id !== fullMessages[0]?.id
+    const hasNext =
+        listItems.length > 0 &&
+        listItems[listItems.length - 1]?.id !==
+            fullMessages[fullMessages.length - 1]?.id
+
+    const showJumpToBottom =
+        listItems.length > 0 &&
+        listItems[listItems.length - 1]?.id !==
+            fullMessages[fullMessages.length - 1]?.id
+
+    const onJumpToBottom = () => {
+        setListItems(fullMessages.slice(-VIEW_COUNT))
+        nextTick(() => {
+            listRef.current?.scrollToBottom("instant")
+        })
+    }
+
+    useEffect(() => {
+        if (!sendModalOpen || !plain.trim()) {
+            return
+        }
+
+        let cancelled = false
+
+        void (async () => {
+            setEncryptBusy(true)
+
+            try {
+                await onEncrypt()
+            } catch (e) {
+                const raw = e instanceof Error ? e.message : String(e)
+                setToast(raw)
+
+                if (!cancelled) {
+                    setSendModalOpen(false)
+                }
+            } finally {
+                setEncryptBusy(false)
+            }
+        })()
+
+        return () => {
+            cancelled = true
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- run encrypt once per modal open
+    }, [sendModalOpen])
 
     const exportLabels: ExportQrLabels = {
         showQr: t("contacts.showQr"),
@@ -379,280 +487,89 @@ export function ChatThreadWidget() {
         )
     }
 
-    const renderStoredMessageBody = (m: MessagePlain) => {
-        const selfPayload = m.outboundSelfPayload ?? m.outboundSelfArmored
-        if (m.direction === "out") {
-            if (!selfPayload) {
-                return (
-                    <p className="mt-1 text-sm text-muted-foreground">
-                        {t("chat.outboundLegacyNoSelfCopy")}
-                    </p>
-                )
-            }
-            const prev = outboundPreview[m.id]
-            if (!prev) {
-                return (
-                    <p className="mt-1 text-sm text-muted-foreground">
-                        {t("common.loading")}
-                    </p>
-                )
-            }
-            if (prev.ok) {
-                return (
-                    <div className="mt-1 space-y-1">
-                        <p className="whitespace-pre-wrap text-sm text-foreground">
-                            {prev.text}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground">
-                            {prev.sig
-                                ? t("chat.signatureOk")
-                                : t("chat.signatureBad")}
-                        </p>
-                    </div>
-                )
-            }
-            return (
-                <p className="mt-1 text-sm text-destructive">{prev.err}</p>
-            )
+    const openSendModal = () => {
+        if (!plain.trim()) {
+            return
         }
-        const prev = inboundPreview[m.id]
-        if (!prev) {
-            return (
-                <p className="mt-1 text-sm text-muted-foreground">
-                    {t("common.loading")}
-                </p>
-            )
-        }
-        if (prev.ok) {
-            return (
-                <div className="mt-1 space-y-1">
-                    <p className="whitespace-pre-wrap text-sm text-foreground">
-                        {prev.text}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                        {prev.sig
-                            ? t("chat.signatureOk")
-                            : t("chat.signatureBad")}
-                    </p>
-                </div>
-            )
-        }
-        return <p className="mt-1 text-sm text-destructive">{prev.err}</p>
+
+        setToast(null)
+        setSendModalOpen(true)
     }
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between gap-2">
-                <h1 className="text-lg font-semibold">
-                    {contact.displayName}
-                    <span className="ml-2 text-xs font-normal text-muted-foreground">
-                        ({contact.cryptoProtocol})
-                    </span>
-                </h1>
-                <Link to="/" className="text-sm text-muted-foreground underline">
-                    {t("chat.back")}
-                </Link>
-            </div>
-
-            <section className="space-y-3 rounded-lg border border-border p-4">
-                <h2 className="text-sm font-medium">{t("chat.plainInput")}</h2>
-                <textarea
-                    className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={plain}
-                    onChange={(e) => setPlain(e.target.value)}
-                />
-                <Button type="button" onClick={() => void onEncrypt()}>
-                    {t("chat.encryptBtn")}
-                </Button>
-                {armoredOut && messageQrPayload && (
-                    <ExportQrBlock
-                        heading={t("chat.exportEncryptedSection")}
-                        labels={exportLabels}
-                        expanded={exportQrExpanded}
-                        onExpandedChange={setExportQrExpanded}
-                        qrPayload={messageQrPayload}
-                        maxByteLength={QR_MESSAGE_MAX_BYTES}
-                        armoredText={armoredOut}
-                        onNotify={setToast}
-                        showArmoredPreview
-                        footer={
-                            <div className="space-y-2 text-xs text-muted-foreground">
-                                <p>
-                                    {t("chat.exportForContactHint", {
-                                        name: contact.displayName,
-                                    })}
-                                </p>
-                                <p>
-                                    {t("chat.qrBinaryHint", {
-                                        max: QR_MESSAGE_MAX_BYTES,
-                                    })}
-                                </p>
-                            </div>
-                        }
-                        oversizeWarning={warnLen}
-                        oversizeMessage={
-                            <p className="text-xs text-destructive">
-                                {t("chat.qrTooLarge", {
-                                    max: QR_MESSAGE_MAX_BYTES,
-                                })}
-                            </p>
-                        }
-                        shareFileName="cryptessage-message-qr.png"
-                        shareTitle="cryptessage"
-                    />
-                )}
-            </section>
-
-            <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-                {t("chat.receiveOnlyIncomingHint", {
-                    name: contact.displayName,
-                })}
-            </p>
-            <ImportQrBlock
-                heading={t("chat.receiveEncrypted")}
-                labels={{
-                    scan: t("chat.scanMessageQr"),
-                    pasteFromImage: t("contacts.pasteQr"),
-                    pasteFromImagePending: t("contacts.pasteQrBusy"),
-                    pickQrImage: t("contacts.pickQrImage"),
-                    armoredSectionTitle: t("chat.pasteIn"),
-                    armoredSubmit: t("chat.decryptBtn"),
+        <div className="relative flex h-[calc(100dvh-9.5rem)] max-h-[800px] min-h-[420px] flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-lg">
+            <ChatThreadHeader
+                contact={contact}
+                onReceiveClick={() => {
+                    setToast(null)
+                    setReceiveModalOpen(true)
                 }}
-                armoredPlaceholder={t("chat.pasteArmoredPlaceholder")}
-                armoredValue={pasteIn}
-                onArmoredChange={setPasteIn}
-                onArmoredSubmit={() => void onDecryptArmoredPaste()}
-                armoredSubmitDisabled={!pasteIn.trim()}
-                pasteBusy={pasteQrBusy}
-                scanOpen={importScan}
-                onOpenScan={() => setImportScan(true)}
-                onCloseScan={() => setImportScan(false)}
-                onPasteQrFromImage={() =>
-                    void onPasteMessageQrFromClipboard()
-                }
-                onPickQrImageFile={onPickMessageQrFromFile}
-                onScannedPayload={(payload) =>
-                    setImportPending({ raw: payload, source: "camera" })
-                }
-                preview={
-                    importPending ? (
-                        <ImportQrPreviewShell
-                            title={t("chat.reviewScannedCiphertext")}
-                            metaLine={`${
-                                importPending.source === "camera"
-                                    ? t("contacts.reviewSourceCamera")
-                                    : importPending.source === "file"
-                                      ? t("contacts.reviewSourceFile")
-                                      : t("contacts.reviewSourceClipboard")
-                            } · ${t("contacts.reviewPayloadSize", {
-                                n: payloadByteLength(importPending.raw),
-                            })}`}
-                            qrPayload={importPending.raw}
-                            maxQrBytes={QR_MESSAGE_MAX_BYTES}
-                            tooLongHint={t("contacts.reviewQrTooLong")}
-                        >
-                            {importDecryptLoading && (
-                                <p className="text-muted-foreground">
-                                    {t("common.loading")}
-                                </p>
-                            )}
-                            {importDecryptErr && (
-                                <p className="text-sm text-destructive">
-                                    {importDecryptErr}
-                                </p>
-                            )}
-                            {importDecryptPreview && (
-                                <>
-                                    <p className="text-sm font-medium">
-                                        {t("chat.decrypted")}
-                                    </p>
-                                    <p className="rounded-md bg-muted p-2 text-sm">
-                                        {importDecryptPreview.text}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                        {importDecryptPreview.signaturesValid
-                                            ? t("chat.signatureOk")
-                                            : t("chat.signatureBad")}
-                                    </p>
-                                    <div className="flex flex-wrap gap-2 pt-1">
-                                        <Button
-                                            type="button"
-                                            onClick={() =>
-                                                void confirmSaveScannedInbound()
-                                            }
-                                        >
-                                            {t("chat.saveInbound")}
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={() =>
-                                                setImportPending(null)
-                                            }
-                                        >
-                                            {t("contacts.discardReview")}
-                                        </Button>
-                                    </div>
-                                </>
-                            )}
-                            {!importDecryptLoading &&
-                                importDecryptErr &&
-                                !importDecryptPreview && (
-                                    <div className="pt-2">
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={() =>
-                                                setImportPending(null)
-                                            }
-                                        >
-                                            {t("contacts.discardReview")}
-                                        </Button>
-                                    </div>
-                                )}
-                        </ImportQrPreviewShell>
-                    ) : undefined
-                }
             />
-            </div>
 
-            {decrypted && (
-                <div className="space-y-1 rounded-lg border border-border p-4">
-                    <p className="text-sm font-medium">{t("chat.decrypted")}</p>
-                    <p className="rounded-md bg-muted p-2 text-sm">{decrypted}</p>
-                    <p className="text-xs text-muted-foreground">
-                        {sigOk
-                            ? t("chat.signatureOk")
-                            : t("chat.signatureBad")}
-                    </p>
-                </div>
-            )}
+            <ChatThreadMessageList
+                ref={listRef}
+                listItems={listItems}
+                listDisable={listDisable}
+                hasPrevious={hasPrevious}
+                hasNext={hasNext}
+                onLoadMore={handleLoadMore}
+                onItemsChange={setListItems}
+                showJumpToBottom={showJumpToBottom}
+                onJumpToBottom={onJumpToBottom}
+                inboundPreview={inboundPreview}
+                outboundPreview={outboundPreview}
+            />
 
             {toast && (
-                <p className="text-sm text-muted-foreground">{toast}</p>
+                <p className="shrink-0 border-b border-border bg-muted/40 px-3 py-2 text-center text-xs text-muted-foreground">
+                    {toast}
+                </p>
             )}
 
-            <section>
-                <h2 className="mb-2 text-sm font-medium">{t("home.title")}</h2>
-                <ul className="space-y-2 text-xs text-muted-foreground">
-                    {messages.map((m) => (
-                        <li
-                            key={m.id}
-                            className="rounded border border-border px-2 py-1"
-                        >
-                            <span className="font-medium text-foreground">
-                                {m.direction === "out" ? "→" : "←"}
-                            </span>{" "}
-                            {new Date(m.createdAt).toLocaleString()}
-                            <span className="ml-1 text-[10px] uppercase text-muted-foreground">
-                                {m.cryptoProtocol}
-                            </span>
-                            {renderStoredMessageBody(m)}
-                        </li>
-                    ))}
-                </ul>
-            </section>
+            <ChatThreadComposer
+                value={plain}
+                onChange={setPlain}
+                onSubmit={openSendModal}
+            />
+
+            <ChatSendEncryptedDialog
+                open={sendModalOpen}
+                onOpenChange={setSendModalOpen}
+                encryptBusy={encryptBusy}
+                armoredOut={armoredOut}
+                messageQrPayload={messageQrPayload}
+                contact={contact}
+                exportQrExpanded={exportQrExpanded}
+                onExpandedChange={setExportQrExpanded}
+                warnLen={warnLen}
+                exportLabels={exportLabels}
+                onNotify={setToast}
+            />
+
+            <ChatReceiveEncryptedDialog
+                open={receiveModalOpen}
+                onOpenChange={setReceiveModalOpen}
+                contact={contact}
+                pasteIn={pasteIn}
+                onPasteInChange={setPasteIn}
+                onDecryptArmoredPaste={() => void onDecryptArmoredPaste()}
+                pasteQrBusy={pasteQrBusy}
+                importScan={importScan}
+                onImportScanOpen={() => setImportScan(true)}
+                onImportScanClose={() => setImportScan(false)}
+                onPasteMessageQrFromClipboard={() =>
+                    void onPasteMessageQrFromClipboard()
+                }
+                onPickMessageQrFromFile={onPickMessageQrFromFile}
+                importPending={importPending}
+                onImportPending={setImportPending}
+                importDecryptLoading={importDecryptLoading}
+                importDecryptPreview={importDecryptPreview}
+                importDecryptErr={importDecryptErr}
+                onConfirmSaveScannedInbound={() =>
+                    void confirmSaveScannedInbound()
+                }
+            />
         </div>
     )
 }

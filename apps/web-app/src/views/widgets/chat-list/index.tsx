@@ -26,6 +26,7 @@ export function ChatListWidget() {
                 if (!(await identity.hasIdentity())) {
                     await identity.ensureIdentity("User")
                 }
+
                 await identity.ensureCompactIdentity()
             } catch {
                 /* ignore */
@@ -36,6 +37,7 @@ export function ChatListWidget() {
     useEffect(() => {
         void (async () => {
             setLoading(true)
+
             try {
                 setContacts(await conv.listContacts())
             } finally {

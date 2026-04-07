@@ -49,23 +49,29 @@ export function UnlockWidget() {
         if (!(await identity.hasIdentity())) {
             await identity.ensureIdentity(name.trim() || "User")
         }
+
         await identity.ensureCompactIdentity()
     }
 
     const onCreate = async () => {
         setErr(null)
+
         if (pass !== pass2) {
             setErr(t("unlock.error.passMismatch"))
             return
         }
+
         setBusy(true)
+
         try {
             const exists = await auth.hasVault()
+
             if (exists) {
                 setErr(t("unlock.error.generic"))
                 setBusy(false)
                 return
             }
+
             await auth.bootstrapNewVault(pass)
             await identity.ensureIdentity(name.trim() || "User")
             goNext()
@@ -79,6 +85,7 @@ export function UnlockWidget() {
     const onUnlock = async () => {
         setErr(null)
         setBusy(true)
+
         try {
             await auth.unlock(pass)
             await afterSession()
@@ -93,6 +100,7 @@ export function UnlockWidget() {
     const onRestore = async () => {
         setErr(null)
         setBusy(true)
+
         try {
             await backup.importEncryptedBackup(pass, fileJson)
             goNext()
@@ -107,10 +115,13 @@ export function UnlockWidget() {
         if (!f) {
             return
         }
+
         const reader = new FileReader()
+
         reader.onload = () => {
             setFileJson(typeof reader.result === "string" ? reader.result : "")
         }
+
         reader.readAsText(f)
     }
 

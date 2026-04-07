@@ -20,9 +20,11 @@ export class VaultBackupProvider implements IVaultBackupService {
     public async exportEncryptedBackup(): Promise<string> {
         const key = this.auth.getMasterKey()
         const salt = await this.db.readSalt()
+
         if (!salt) {
             throw new Error("No salt")
         }
+
         const plain = await this.db.exportPlain(key)
         return buildBackupFile(key, salt, plain)
     }

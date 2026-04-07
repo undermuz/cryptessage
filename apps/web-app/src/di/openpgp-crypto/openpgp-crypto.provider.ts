@@ -33,13 +33,14 @@ function joinArmorChunks(chunks: unknown[]): string {
     if (!chunks.length) {
         return ""
     }
+
     return chunks
         .map((c) =>
             typeof c === "string"
                 ? c
                 : c instanceof Uint8Array
-                  ? new TextDecoder().decode(c)
-                  : String(c),
+                    ? new TextDecoder().decode(c)
+                    : String(c),
         )
         .join("")
 }
@@ -52,6 +53,7 @@ async function messageArmorToString(armored: unknown): Promise<string> {
     if (typeof armored === "string") {
         return armored
     }
+
     if (
         armored &&
         Array.isArray(armored) &&
@@ -63,6 +65,7 @@ async function messageArmorToString(armored: unknown): Promise<string> {
         const out = await streamLike.readToEnd(joinArmorChunks)
         return typeof out === "string" ? out : String(out)
     }
+
     if (
         armored &&
         typeof (armored as ReadableStream<Uint8Array | string>).getReader ===
@@ -72,36 +75,45 @@ async function messageArmorToString(armored: unknown): Promise<string> {
             armored as ReadableStream<Uint8Array | string>
         ).getReader()
         const parts: string[] = []
+
         try {
             for (;;) {
                 const { done, value } = await reader.read()
+
                 if (done) {
                     break
                 }
+
                 if (typeof value === "string") {
                     parts.push(value)
                 } else if (value instanceof Uint8Array) {
                     parts.push(new TextDecoder().decode(value))
                 }
             }
+
             return parts.join("")
         } finally {
             reader.releaseLock?.()
         }
     }
+
     return String(armored)
 }
 
 /** OpenPGP key id / fingerprint style: only hex (+ spaces/colons). Cannot be used as a public key. */
 function looksLikeFingerprintOrKeyId(raw: string): boolean {
     const t = raw.trim()
+
     if (!/^[\s:0-9a-fA-F]+$/.test(t)) {
         return false
     }
+
     const hex = t.replace(/[\s:]/g, "")
+
     if (!/^[0-9a-fA-F]+$/.test(hex)) {
         return false
     }
+
     return [8, 16, 32, 40, 48, 64].includes(hex.length)
 }
 
@@ -126,9 +138,11 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
     private async getPrivateKey(): Promise<openpgp.PrivateKey> {
         const masterKey = this.auth.getMasterKey()
         const id = await this.db.getIdentity(masterKey)
+
         if (!id) {
             throw new Error("No identity")
         }
+
         return openpgp.readPrivateKey({
             armoredKey: id.privateKeyArmored,
         })
@@ -137,9 +151,11 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
     public async buildVisitCard(displayName: string): Promise<string> {
         const masterKey = this.auth.getMasterKey()
         const id = await this.db.getIdentity(masterKey)
+
         if (!id) {
             throw new Error("No identity")
         }
+
         const payload: VisitCardJson = {
             v: VISIT_CARD_JSON_VERSION,
             n: displayName,
@@ -151,17 +167,21 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
     public async buildVisitCardBinary(displayName: string): Promise<Uint8Array> {
         const masterKey = this.auth.getMasterKey()
         const id = await this.db.getIdentity(masterKey)
+
         if (!id) {
             throw new Error("No identity")
         }
+
         const key = await openpgp.readKey({
             armoredKey: id.publicKeyArmored,
         })
         const keyBin = key.write()
         const nameUtf8 = new TextEncoder().encode(displayName)
+
         if (nameUtf8.length > 65535) {
             throw new Error("Display name is too long for visit card")
         }
+
         const out = new Uint8Array(
             4 +
                 1 +
@@ -192,22 +212,28 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
     ): Promise<{ displayName: string; publicKeyArmored: string }> {
         if (typeof raw === "string") {
             const trimmed = raw.trim()
+
             if (!trimmed) {
                 throw new Error("Empty input")
             }
+
             const asUtf8 = new TextEncoder().encode(trimmed)
+
             if (isBinaryVisitMagic(asUtf8)) {
                 return this.parseVisitCardBinary(asUtf8)
             }
+
             return this.parseVisitCardText(trimmed)
         }
 
         if (!raw.byteLength) {
             throw new Error("Empty input")
         }
+
         if (isBinaryVisitMagic(raw)) {
             return this.parseVisitCardBinary(raw)
         }
+
         const asText = new TextDecoder("utf-8", { fatal: false }).decode(raw).trim()
         return this.parseVisitCardText(asText)
     }
@@ -218,18 +244,23 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
         if (bytes.byteLength < 11) {
             throw new Error("Binary visit card is too short")
         }
+
         let o = 4
         const ver = bytes[o++]
+
         if (ver !== VISIT_CARD_BINARY_PAYLOAD_VERSION) {
             throw new Error(
                 `Unsupported binary visit card version: ${ver} (expected ${VISIT_CARD_BINARY_PAYLOAD_VERSION})`,
             )
         }
+
         const nameLen = (bytes[o] << 8) | bytes[o + 1]
         o += 2
+
         if (o + nameLen + 4 > bytes.byteLength) {
             throw new Error("Invalid binary visit card layout (name)")
         }
+
         const displayName = new TextDecoder().decode(bytes.subarray(o, o + nameLen))
         o += nameLen
         const keyLen =
@@ -238,9 +269,11 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
             (bytes[o + 2] << 8) |
             bytes[o + 3]
         o += 4
+
         if (keyLen < 1 || o + keyLen > bytes.byteLength) {
             throw new Error("Invalid binary visit card layout (key size)")
         }
+
         const keyBytes = bytes.subarray(o, o + keyLen)
         const key = await openpgp.readKey({ binaryKey: keyBytes })
         return {
@@ -255,6 +288,7 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
     }> {
         try {
             const j = JSON.parse(trimmed) as unknown
+
             if (
                 j &&
                 typeof j === "object" &&
@@ -264,11 +298,13 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
                 const rec = j as VisitCardJson
                 const armored =
                     extractPublicKeyArmored(rec.k) ?? rec.k.trim()
+
                 if (!PUBLIC_KEY_ARMOR.test(armored)) {
                     throw new Error(
                         'Visit card field "k" must include a PGP public key block (-----BEGIN PGP PUBLIC KEY BLOCK-----)',
                     )
                 }
+
                 return Promise.resolve({
                     displayName:
                         typeof rec.n === "string" ? rec.n : "",
@@ -284,6 +320,7 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
         }
 
         const armored = extractPublicKeyArmored(trimmed)
+
         if (armored) {
             return Promise.resolve({
                 displayName: "",
@@ -376,11 +413,11 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
         const message =
             typeof ciphertext === "string"
                 ? await openpgp.readMessage({
-                      armoredMessage: ciphertext.trim(),
-                  })
+                    armoredMessage: ciphertext.trim(),
+                })
                 : await openpgp.readMessage({
-                      binaryMessage: unwrapMessageQrPayload(ciphertext),
-                  })
+                    binaryMessage: unwrapMessageQrPayload(ciphertext),
+                })
         const { data, signatures } = await openpgp.decrypt({
             message,
             decryptionKeys: privateKey,
@@ -388,6 +425,7 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
         })
         const outText = await messagePayloadToUtf8(data)
         let signaturesValid = true
+
         for (const s of signatures) {
             try {
                 await s.verified
@@ -395,6 +433,7 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
                 signaturesValid = false
             }
         }
+
         return { text: outText, signaturesValid }
     }
 
@@ -403,11 +442,14 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
     ): Promise<string> {
         if (typeof ciphertext === "string") {
             const t = ciphertext.trim()
+
             if (!t.startsWith("-----BEGIN PGP MESSAGE")) {
                 throw new Error("Expected armored OpenPGP message")
             }
+
             return t
         }
+
         const inner = unwrapMessageQrPayload(ciphertext)
         const packetMsg = await openpgp.readMessage({
             binaryMessage: inner,
@@ -420,12 +462,15 @@ async function messagePayloadToUtf8(data: unknown): Promise<string> {
     if (typeof data === "string") {
         return data
     }
+
     if (data instanceof Uint8Array) {
         return new TextDecoder().decode(data)
     }
+
     if (data && typeof (data as ReadableStream<Uint8Array>).getReader === "function") {
         const buf = await new Response(data as ReadableStream).arrayBuffer()
         return new TextDecoder().decode(new Uint8Array(buf))
     }
+
     return new TextDecoder().decode(data as BufferSource)
 }

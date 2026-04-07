@@ -3,9 +3,9 @@ export type TimersCallback<TArgs extends any[]> = (...args: TArgs) => void
 export type TimersIntervalConfig =
     | number
     | {
-          interval: number
-          immediate?: boolean
-      }
+        interval: number
+        immediate?: boolean
+    }
 
 export const TimersProvider = Symbol.for("TimersProvider")
 

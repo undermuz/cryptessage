@@ -51,25 +51,31 @@ export function unwrapCompactBinaryFromMessageQr(bytes: Uint8Array): Uint8Array 
     if (!isCompactMessageQrWrapper(bytes)) {
         return bytes
     }
+
     if (bytes.byteLength < 9) {
         throw new Error("Compact message QR payload is too short")
     }
+
     let o = 4
     const ver = bytes[o++]
+
     if (ver !== COMPACT_MESSAGE_QR_PAYLOAD_VERSION) {
         throw new Error(
             `Unsupported compact message QR version: ${ver} (expected ${COMPACT_MESSAGE_QR_PAYLOAD_VERSION})`,
         )
     }
+
     const keyLen =
         (bytes[o] << 24) |
         (bytes[o + 1] << 16) |
         (bytes[o + 2] << 8) |
         bytes[o + 3]
     o += 4
+
     if (keyLen < 1 || o + keyLen > bytes.byteLength) {
         throw new Error("Invalid compact message QR layout")
     }
+
     return bytes.subarray(o, o + keyLen)
 }
 
@@ -80,9 +86,11 @@ export function unwrapMessageQrPayload(bytes: Uint8Array): Uint8Array {
     if (isMessageQrWrapper(bytes)) {
         return unwrapOpenPgpBinaryFromMessageQr(bytes)
     }
+
     if (isCompactMessageQrWrapper(bytes)) {
         return unwrapCompactBinaryFromMessageQr(bytes)
     }
+
     return bytes
 }
 
@@ -108,24 +116,30 @@ export function unwrapOpenPgpBinaryFromMessageQr(bytes: Uint8Array): Uint8Array 
     if (!isMessageQrWrapper(bytes)) {
         return bytes
     }
+
     if (bytes.byteLength < 9) {
         throw new Error("Message QR payload is too short")
     }
+
     let o = 4
     const ver = bytes[o++]
+
     if (ver !== MESSAGE_QR_PAYLOAD_VERSION) {
         throw new Error(
             `Unsupported message QR version: ${ver} (expected ${MESSAGE_QR_PAYLOAD_VERSION})`,
         )
     }
+
     const keyLen =
         (bytes[o] << 24) |
         (bytes[o + 1] << 16) |
         (bytes[o + 2] << 8) |
         bytes[o + 3]
     o += 4
+
     if (keyLen < 1 || o + keyLen > bytes.byteLength) {
         throw new Error("Invalid message QR layout")
     }
+
     return bytes.subarray(o, o + keyLen)
 }

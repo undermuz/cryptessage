@@ -40,6 +40,7 @@ export function encryptCompactMessage(
     if (recipientX25519PublicKey.byteLength !== COMPACT_KEY_LEN) {
         throw new Error("Invalid recipient X25519 public key")
     }
+
     const ephemeralSecret = x25519.utils.randomSecretKey()
     const ephemeralPublic = x25519.getPublicKey(ephemeralSecret)
     const shared = x25519.getSharedSecret(
@@ -49,17 +50,21 @@ export function encryptCompactMessage(
     const aeadKey = deriveAeadKey(shared)
     const plainBytes = new TextEncoder().encode(plaintextUtf8)
     const signature = ed25519.sign(plainBytes, senderEd25519SecretKey)
+
     if (signature.byteLength !== COMPACT_ED25519_SIG_LEN) {
         throw new Error("Unexpected Ed25519 signature length")
     }
+
     const inner = new Uint8Array(plainBytes.byteLength + signature.byteLength)
     inner.set(plainBytes, 0)
     inner.set(signature, plainBytes.byteLength)
     const nonce = crypto.getRandomValues(new Uint8Array(NONCE_LEN))
     const sealed = secretbox(aeadKey, nonce).seal(inner)
+
     if (sealed.byteLength < MAC_LEN) {
         throw new Error("Seal output too short")
     }
+
     const encPayload = sealed.subarray(0, sealed.byteLength - MAC_LEN)
     const mac = sealed.subarray(sealed.byteLength - MAC_LEN)
     const out = new Uint8Array(
@@ -90,9 +95,11 @@ export function decryptCompactMessage(
     if (packet.byteLength < 1 + COMPACT_KEY_LEN + NONCE_LEN + MAC_LEN + 1) {
         throw new Error("Compact message packet too short")
     }
+
     if (packet[0] !== COMPACT_MESSAGE_VERSION) {
         throw new Error("Unsupported compact message version")
     }
+
     const ephemeralPublic = packet.subarray(1, 33)
     const nonce = packet.subarray(33, 57)
     const mac = packet.subarray(57, 73)
@@ -106,23 +113,28 @@ export function decryptCompactMessage(
     )
     const aeadKey = deriveAeadKey(shared)
     let inner: Uint8Array
+
     try {
         inner = secretbox(aeadKey, nonce).open(sealed)
     } catch {
         throw new Error("Compact message failed to decrypt (wrong key or corrupt data)")
     }
+
     if (inner.byteLength < COMPACT_ED25519_SIG_LEN) {
         throw new Error("Compact message inner payload too short")
     }
+
     const sigStart = inner.byteLength - COMPACT_ED25519_SIG_LEN
     const plainBytes = inner.subarray(0, sigStart)
     const sig = inner.subarray(sigStart)
     const text = new TextDecoder().decode(plainBytes)
     let signaturesValid = false
+
     try {
         signaturesValid = ed25519.verify(sig, plainBytes, senderEd25519PublicKey)
     } catch {
         signaturesValid = false
     }
+
     return { text, signaturesValid }
 }

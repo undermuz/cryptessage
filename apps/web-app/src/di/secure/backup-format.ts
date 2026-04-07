@@ -24,6 +24,7 @@ export function serializeBackupFile(payload: BackupFileV1): string {
 
 export function parseBackupFile(json: string): BackupFileV1 {
     const raw = JSON.parse(json) as unknown
+
     if (
         !raw ||
         typeof raw !== "object" ||
@@ -34,6 +35,7 @@ export function parseBackupFile(json: string): BackupFileV1 {
     ) {
         throw new Error("Invalid backup file")
     }
+
     return raw as BackupFileV1
 }
 
@@ -68,9 +70,11 @@ export async function readBackupPlain(
         ciphertextB64: file.ciphertextB64,
     })
     const plain = JSON.parse(utf8) as BackupPlainPayload
+
     if (!plain.identity || !Array.isArray(plain.contacts) || !Array.isArray(plain.messages)) {
         throw new Error("Invalid backup payload")
     }
+
     return { salt, plain }
 }
 

@@ -42,11 +42,13 @@ export function SettingsWidget() {
             } catch {
                 setFp("—")
             }
+
             try {
                 setPublicArmored(await identity.getPublicKeyArmored())
             } catch {
                 setPublicArmored("")
             }
+
             try {
                 setVisitCardFormat(await cryptoPrefs.getDefaultVisitCardFormat())
             } catch {
@@ -62,6 +64,7 @@ export function SettingsWidget() {
 
     const onExport = async () => {
         setErr(null)
+
         try {
             const json = await backup.exportEncryptedBackup()
             const blob = new Blob([json], { type: "application/json" })
@@ -110,12 +113,15 @@ export function SettingsWidget() {
                     onChange={(e) => {
                         const v = e.target.value as CryptoProtocolId
                         setVisitCardFormat(v)
+
                         void (async () => {
                             setCryptErr(null)
+
                             try {
                                 if (v === "compact_v1") {
                                     await identity.ensureCompactIdentity()
                                 }
+
                                 await cryptoPrefs.setDefaultVisitCardFormat(v)
                             } catch (ex) {
                                 const reason =

@@ -80,7 +80,7 @@ class EventObserver<
             return false
         }
 
-        let length = subscribers.length
+        const length = subscribers.length
 
         this.listeners[eventName] = subscribers.filter(
             (subscriber) => subscriber !== fn,
@@ -136,7 +136,7 @@ class EventObserver<
         }
 
         try {
-            for (let subscriber of this.listeners[eventName]) {
+            for (const subscriber of this.listeners[eventName]) {
                 subscriber.apply(null, data)
             }
         } catch (e) {

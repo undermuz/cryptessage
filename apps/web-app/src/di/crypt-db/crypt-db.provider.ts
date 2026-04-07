@@ -23,21 +23,27 @@ export class CryptDb implements CryptDbService {
         if (this.db) {
             return
         }
+
         this.db = await new Promise((resolve, reject) => {
             const req = indexedDB.open(CRYPT_DB_NAME, CRYPT_DB_VERSION)
             req.onerror = () => reject(req.error)
             req.onsuccess = () => resolve(req.result)
+
             req.onupgradeneeded = () => {
                 const idb = req.result
+
                 if (!idb.objectStoreNames.contains(STORE_META)) {
                     idb.createObjectStore(STORE_META)
                 }
+
                 if (!idb.objectStoreNames.contains(STORE_IDENTITY)) {
                     idb.createObjectStore(STORE_IDENTITY)
                 }
+
                 if (!idb.objectStoreNames.contains(STORE_CONTACTS)) {
                     idb.createObjectStore(STORE_CONTACTS, { keyPath: "id" })
                 }
+
                 if (!idb.objectStoreNames.contains(STORE_MESSAGES)) {
                     const s = idb.createObjectStore(STORE_MESSAGES, {
                         keyPath: "id",
@@ -52,6 +58,7 @@ export class CryptDb implements CryptDbService {
         if (!this.db) {
             throw new Error("DB not open")
         }
+
         return this.db
     }
 
@@ -59,9 +66,11 @@ export class CryptDb implements CryptDbService {
         await this.open()
         const idb = this.requireDb()
         const raw = await this.txGet<string>(idb, STORE_META, KEY_SALT)
+
         if (!raw) {
             return null
         }
+
         return base64ToBytes(raw)
     }
 
@@ -75,9 +84,11 @@ export class CryptDb implements CryptDbService {
         await this.open()
         const idb = this.requireDb()
         const raw = await this.txGet<string>(idb, STORE_META, key)
+
         if (!raw) {
             return null
         }
+
         return JSON.parse(raw) as EncryptedBlob
     }
 
@@ -95,9 +106,11 @@ export class CryptDb implements CryptDbService {
             STORE_IDENTITY,
             KEY_PROFILE,
         )
+
         if (!row) {
             return null
         }
+
         const json = await decryptUtf8(masterKey, row.blob)
         return JSON.parse(json) as IdentityPlain
     }
@@ -117,10 +130,12 @@ export class CryptDb implements CryptDbService {
         const idb = this.requireDb()
         const rows = await this.getAll<ContactRow>(idb, STORE_CONTACTS)
         const out: ContactPlain[] = []
+
         for (const row of rows) {
             const json = await decryptUtf8(masterKey, row.blob)
             out.push(normalizeContact(JSON.parse(json) as ContactPlain))
         }
+
         return out.sort((a, b) => b.createdAt - a.createdAt)
     }
 
@@ -136,6 +151,7 @@ export class CryptDb implements CryptDbService {
         const idb = this.requireDb()
         await this.txDelete(idb, STORE_CONTACTS, id)
         const msgs = await this.listMessages(masterKey, id)
+
         for (const m of msgs) {
             await this.txDelete(idb, STORE_MESSAGES, m.id)
         }
@@ -154,10 +170,12 @@ export class CryptDb implements CryptDbService {
             contactId,
         )
         const out: MessagePlain[] = []
+
         for (const row of rows) {
             const json = await decryptUtf8(masterKey, row.blob)
             out.push(normalizeMessage(JSON.parse(json) as MessagePlain))
         }
+
         return out.sort((a, b) => a.createdAt - b.createdAt)
     }
 
@@ -178,17 +196,21 @@ export class CryptDb implements CryptDbService {
         identity: IdentityPlain
     }> {
         const identity = await this.getIdentity(masterKey)
+
         if (!identity) {
             throw new Error("No identity")
         }
+
         const contacts = await this.listContacts(masterKey)
         const idb = this.requireDb()
         const allMsgRows = await this.getAll<MessageRow>(idb, STORE_MESSAGES)
         const messages: MessagePlain[] = []
+
         for (const row of allMsgRows) {
             const json = await decryptUtf8(masterKey, row.blob)
             messages.push(normalizeMessage(JSON.parse(json) as MessagePlain))
         }
+
         return { contacts, messages, identity }
     }
 
@@ -207,9 +229,11 @@ export class CryptDb implements CryptDbService {
         const check = await encryptUtf8(masterKey, "cryptessage_vault_ok")
         await this.writeMetaJson("_check", check)
         await this.saveIdentity(masterKey, data.identity)
+
         for (const c of data.contacts) {
             await this.saveContact(masterKey, c)
         }
+
         for (const m of data.messages) {
             await this.saveMessage(masterKey, m)
         }

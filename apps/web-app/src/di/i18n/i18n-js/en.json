@@ -111,7 +111,15 @@
         "signatureOk": "Signature valid",
         "signatureBad": "Signature could not be verified",
         "back": "Back to chats",
-        "outboundLegacyNoSelfCopy": "Outgoing message (no encrypted copy for your key was stored for this entry)."
+        "outboundLegacyNoSelfCopy": "Outgoing message (no encrypted copy for your key was stored for this entry).",
+        "messagePlaceholder": "Type a message…",
+        "sendOpenEncrypted": "Send",
+        "sendEncryptedTitle": "Encrypted message (QR & text)",
+        "receiveMessages": "Receive messages",
+        "receiveModalTitle": "Receive encrypted message",
+        "scrollToBottom": "Scroll to bottom",
+        "emptyThread": "No messages yet.",
+        "closeModal": "Close"
     },
     "settings": {
         "title": "Settings",

@@ -28,9 +28,11 @@ export class IdentityProvider implements IIdentityService {
     public async ensureIdentity(displayName: string): Promise<void> {
         const key = this.auth.getMasterKey()
         const existing = await this.db.getIdentity(key)
+
         if (existing) {
             return
         }
+
         const { privateKey, publicKey } = await openpgp.generateKey({
             userIDs: [{ name: displayName }],
             type: "ecc",
@@ -47,12 +49,15 @@ export class IdentityProvider implements IIdentityService {
     public async ensureCompactIdentity(): Promise<void> {
         const key = this.auth.getMasterKey()
         const existing = await this.db.getIdentity(key)
+
         if (!existing) {
             return
         }
+
         if (existing.compactIdentity) {
             return
         }
+
         await this.db.saveIdentity(key, {
             ...existing,
             compactIdentity: generateCompactIdentitySecrets(),
@@ -62,9 +67,11 @@ export class IdentityProvider implements IIdentityService {
     public async getPublicKeyArmored(): Promise<string> {
         const key = this.auth.getMasterKey()
         const id = await this.db.getIdentity(key)
+
         if (!id) {
             throw new Error("No identity")
         }
+
         return id.publicKeyArmored
     }
 
@@ -79,10 +86,12 @@ export class IdentityProvider implements IIdentityService {
         const pub = await openpgp.readKey({ armoredKey: armored })
         const packet = pub.users[0]?.userID
         const raw = packet?.userID
+
         if (typeof raw === "string" && raw.trim()) {
             const namePart = raw.includes("<") ? raw.split("<")[0].trim() : raw
             return namePart || "User"
         }
+
         return "User"
     }
 
@@ -90,9 +99,11 @@ export class IdentityProvider implements IIdentityService {
         await this.ensureCompactIdentity()
         const key = this.auth.getMasterKey()
         const id = await this.db.getIdentity(key)
+
         if (!id?.compactIdentity) {
             throw new Error("No compact identity")
         }
+
         const xPub = base64ToBytes(id.compactIdentity.x25519PublicKeyB64)
         const edPub = base64ToBytes(id.compactIdentity.ed25519PublicKeyB64)
         return encodeVisitCardV1(displayName.trim() || "User", xPub, edPub)

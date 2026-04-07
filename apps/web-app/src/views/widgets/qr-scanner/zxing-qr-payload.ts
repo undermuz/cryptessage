@@ -35,14 +35,17 @@ export function zxingCryptessagePayloadFromResult(
     const segments = meta?.get(
         ResultMetadataType.BYTE_SEGMENTS,
     ) as Uint8Array[] | undefined
+
     if (segments && segments.length > 0) {
         const total = segments.reduce((n, s) => n + s.byteLength, 0)
         const out = new Uint8Array(total)
         let o = 0
+
         for (const seg of segments) {
             out.set(seg, o)
             o += seg.byteLength
         }
+
         if (
             startsWithBinaryVisitMagic(out) ||
             isMessageQrWrapper(out) ||
@@ -52,5 +55,6 @@ export function zxingCryptessagePayloadFromResult(
             return out
         }
     }
+
     return result.getText()
 }

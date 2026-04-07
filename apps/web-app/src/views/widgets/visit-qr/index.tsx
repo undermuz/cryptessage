@@ -30,6 +30,7 @@ export const VisitQrCanvas = forwardRef<HTMLCanvasElement, Props>(
         const setCanvasRef = useCallback(
             (el: HTMLCanvasElement | null) => {
                 innerRef.current = el
+
                 if (typeof ref === "function") {
                     ref(el)
                 } else if (ref) {
@@ -44,13 +45,16 @@ export const VisitQrCanvas = forwardRef<HTMLCanvasElement, Props>(
 
         useEffect(() => {
             const canvas = innerRef.current
+
             if (!canvas) {
                 return
             }
+
             if (payloadByteLength(payload) > maxByteLength) {
                 onTooLong?.()
                 return
             }
+
             const qrData =
                 typeof payload === "string"
                     ? payload

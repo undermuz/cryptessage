@@ -6,6 +6,7 @@ export function normalizeContact(c: ContactPlain): ContactPlain {
     const cryptoProtocol: CryptoProtocolId =
         c.cryptoProtocol ?? DEFAULT_CRYPTO_PROTOCOL
     const legacy = c as ContactPlain & { publicKeyArmored?: string }
+
     if (cryptoProtocol === "openpgp") {
         return {
             ...c,
@@ -13,6 +14,7 @@ export function normalizeContact(c: ContactPlain): ContactPlain {
             publicKeyArmored: legacy.publicKeyArmored ?? "",
         }
     }
+
     return {
         ...c,
         cryptoProtocol: "compact_v1",

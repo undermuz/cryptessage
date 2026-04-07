@@ -27,6 +27,7 @@ export const unlockRoute = createRoute({
     component: UnlockPage,
     beforeLoad: ({ context }) => {
         const auth = context.di.get<IAuthService>(AuthService)
+
         if (auth.isUnlocked()) {
             throw redirect({ to: "/" })
         }
@@ -38,6 +39,7 @@ const authedLayoutRoute = createRoute({
     id: "authed",
     beforeLoad: ({ context, location }) => {
         const auth = context.di.get<IAuthService>(AuthService)
+
         if (!auth.isUnlocked()) {
             const back = location.href
             throw redirect({
