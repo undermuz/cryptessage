@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Link, useParams } from "@tanstack/react-router"
+import { useMutation } from "@tanstack/react-query"
 import { useNextTickLayout } from "use-next-tick"
 
 import { useT } from "@/di/react/hooks/useT"
@@ -23,6 +24,17 @@ export function ChatThreadWidget() {
     const [sendModalOpen, setSendModalOpen] = useState(false)
     const [receiveModalOpen, setReceiveModalOpen] = useState(false)
 
+    const setActiveContactIdMutation = useMutation({
+        mutationFn: (id: string | null) => chat.setActiveContactId(id),
+    })
+
+    const encryptOnSendDialogOpenedMutation = useMutation({
+        mutationFn: () => chat.encryptOnSendDialogOpened(),
+        onError: () => {
+            setSendModalOpen(false)
+        },
+    })
+
     const openSendModal = useCallback(() => {
         if (!chat.state.composerPlain.trim()) {
             return
@@ -33,8 +45,8 @@ export function ChatThreadWidget() {
     }, [chat])
 
     useEffect(() => {
-        void chat.setActiveContactId(contactId ?? null)
-    }, [contactId, chat])
+        setActiveContactIdMutation.mutate(contactId ?? null)
+    }, [contactId, setActiveContactIdMutation])
 
     useEffect(() => {
         if (!snap.pendingScrollToBottom) {
@@ -52,22 +64,8 @@ export function ChatThreadWidget() {
             return
         }
 
-        let cancelled = false
-
-        void (async () => {
-            try {
-                await chat.encryptOnSendDialogOpened()
-            } catch {
-                if (!cancelled) {
-                    setSendModalOpen(false)
-                }
-            }
-        })()
-
-        return () => {
-            cancelled = true
-        }
-    }, [sendModalOpen, chat])
+        encryptOnSendDialogOpenedMutation.mutate()
+    }, [sendModalOpen, encryptOnSendDialogOpenedMutation])
 
     if (!contactId) {
         return null
@@ -124,6 +122,7 @@ export function ChatThreadWidget() {
                 open={sendModalOpen}
                 onOpenChange={setSendModalOpen}
                 chat={chat}
+                encryptPending={encryptOnSendDialogOpenedMutation.isPending}
             />
 
             <ChatReceiveEncryptedDialog

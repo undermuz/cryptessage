@@ -80,7 +80,6 @@ export function ContactsWidget() {
     const [contacts, setContacts] = useState<ContactPlain[]>([])
     const [paste, setPaste] = useState("")
     const [nameHint, setNameHint] = useState("")
-    const [scan, setScan] = useState(false)
     const [showMyQr, setShowMyQr] = useState(false)
     const [cardPayload, setCardPayload] = useState<Uint8Array | null>(null)
     const [cardJson, setCardJson] = useState<string | null>(null)
@@ -376,24 +375,23 @@ export function ContactsWidget() {
             />
 
             <ImportQrBlock
-                heading={t("contacts.addVisitCardSection")}
-                labels={{
+                i18n={{
+                    heading: t("contacts.addVisitCardSection"),
                     scan: t("contacts.addQr"),
                     pasteFromImage: t("contacts.pasteQr"),
                     pasteFromImagePending: t("contacts.pasteQrBusy"),
                     pickQrImage: t("contacts.pickQrImage"),
                     armoredSectionTitle: t("contacts.addPaste"),
                     armoredSubmit: t("contacts.addBtn"),
+                    armoredPlaceholder:
+                        "JSON visit card, or full -----BEGIN PGP PUBLIC KEY BLOCK----- (not fingerprint hex)",
                 }}
-                armoredPlaceholder="JSON visit card, or full -----BEGIN PGP PUBLIC KEY BLOCK----- (not fingerprint hex)"
-                armoredValue={paste}
-                onArmoredChange={setPaste}
-                onArmoredSubmit={() => void addFromRaw(paste, visitInterpretation)}
-                armoredSubmitDisabled={!paste.trim()}
-                pasteBusy={pasteBusy}
-                scanOpen={scan}
-                onOpenScan={() => setScan(true)}
-                onCloseScan={() => setScan(false)}
+                armored={{
+                    value: paste,
+                    onChange: setPaste,
+                    onSubmit: () => void addFromRaw(paste, visitInterpretation),
+                }}
+                isProcessing={pasteBusy}
                 onPasteQrFromImage={() => void onPasteQrFromClipboard()}
                 onPickQrImageFile={onPickQrImageFile}
                 onScannedPayload={(payload) =>
@@ -404,126 +402,119 @@ export function ContactsWidget() {
                     value: nameHint,
                     onChange: setNameHint,
                 }}
-                preview={
-                    pendingQr ? (
-                        <ImportQrPreviewShell
-                            title={t("contacts.reviewTitle")}
-                            metaLine={`${
-                                pendingQr.source === "camera"
-                                    ? t("contacts.reviewSourceCamera")
-                                    : pendingQr.source === "file"
-                                        ? t("contacts.reviewSourceFile")
-                                        : t("contacts.reviewSourceClipboard")
-                            } · ${t("contacts.reviewPayloadSize", {
-                                n: visitPayloadByteLength(pendingQr.raw),
-                            })}`}
-                            qrPayload={pendingQr.raw}
-                            maxQrBytes={QR_VISIT_CARD_MAX_BYTES}
-                            tooLongHint={t("contacts.reviewQrTooLong")}
-                        >
-                            <label className="mb-2 block text-xs text-muted-foreground">
-                                {t("contacts.visitInterpretMode")}
-                                <select
-                                    className="mt-1 w-full max-w-xs rounded-md border border-input bg-background px-2 py-1 text-sm"
-                                    value={visitInterpretation}
-                                    onChange={(e) =>
-                                        setVisitInterpretation(
-                                            e.target
-                                                .value as VisitCardInterpretation,
-                                        )
+            >
+                {pendingQr ? (
+                    <ImportQrPreviewShell
+                        title={t("contacts.reviewTitle")}
+                        metaLine={`${
+                            pendingQr.source === "camera"
+                                ? t("contacts.reviewSourceCamera")
+                                : pendingQr.source === "file"
+                                    ? t("contacts.reviewSourceFile")
+                                    : t("contacts.reviewSourceClipboard")
+                        } · ${t("contacts.reviewPayloadSize", {
+                            n: visitPayloadByteLength(pendingQr.raw),
+                        })}`}
+                        qrPayload={pendingQr.raw}
+                        maxQrBytes={QR_VISIT_CARD_MAX_BYTES}
+                        tooLongHint={t("contacts.reviewQrTooLong")}
+                    >
+                        <label className="mb-2 block text-xs text-muted-foreground">
+                            {t("contacts.visitInterpretMode")}
+                            <select
+                                className="mt-1 w-full max-w-xs rounded-md border border-input bg-background px-2 py-1 text-sm"
+                                value={visitInterpretation}
+                                onChange={(e) =>
+                                    setVisitInterpretation(
+                                        e.target.value as VisitCardInterpretation,
+                                    )
+                                }
+                            >
+                                <option value="auto">
+                                    {t("contacts.visitInterpretAuto")}
+                                </option>
+                                <option value="openpgp">
+                                    {t("contacts.visitInterpretOpenpgp")}
+                                </option>
+                                <option value="compact_v1">
+                                    {t("contacts.visitInterpretCompact")}
+                                </option>
+                            </select>
+                        </label>
+                        {previewLoading && (
+                            <p className="text-muted-foreground">
+                                {t("common.loading")}
+                            </p>
+                        )}
+                        {!previewLoading && preview && (
+                            <>
+                                <p
+                                    className={
+                                        preview.valid
+                                            ? "font-medium text-emerald-700 dark:text-emerald-400"
+                                            : "font-medium text-destructive"
                                     }
                                 >
-                                    <option value="auto">
-                                        {t("contacts.visitInterpretAuto")}
-                                    </option>
-                                    <option value="openpgp">
-                                        {t("contacts.visitInterpretOpenpgp")}
-                                    </option>
-                                    <option value="compact_v1">
-                                        {t("contacts.visitInterpretCompact")}
-                                    </option>
-                                </select>
-                            </label>
-                            {previewLoading && (
-                                <p className="text-muted-foreground">
-                                    {t("common.loading")}
+                                    {preview.valid
+                                        ? t("contacts.reviewValid")
+                                        : t("contacts.reviewInvalid")}
                                 </p>
-                            )}
-                            {!previewLoading && preview && (
-                                <>
-                                    <p
-                                        className={
-                                            preview.valid
-                                                ? "font-medium text-emerald-700 dark:text-emerald-400"
-                                                : "font-medium text-destructive"
-                                        }
+                                {preview.detectedProtocol && (
+                                    <p className="text-xs text-muted-foreground">
+                                        {t("contacts.reviewProtocol", {
+                                            p: preview.detectedProtocol,
+                                        })}
+                                    </p>
+                                )}
+                                {preview.displayName && (
+                                    <p>
+                                        <span className="text-muted-foreground">
+                                            {t("contacts.reviewDisplayName")}:&nbsp;
+                                        </span>
+                                        {preview.displayName}
+                                    </p>
+                                )}
+                                <p className="whitespace-pre-wrap break-words text-muted-foreground">
+                                    {preview.detail}
+                                </p>
+                                {preview.compactKeyPreview && (
+                                    <p className="text-xs text-muted-foreground">
+                                        {t("contacts.reviewCompactPub")}:{" "}
+                                        {preview.compactKeyPreview}
+                                    </p>
+                                )}
+                                {preview.publicKeyArmored && (
+                                    <label className="block text-xs text-muted-foreground">
+                                        {t("contacts.reviewPublicKey")}
+                                        <textarea
+                                            readOnly
+                                            spellCheck={false}
+                                            className="mt-1 max-h-64 min-h-[140px] w-full resize-y rounded-md border border-input bg-muted/50 px-3 py-2 font-mono text-xs leading-snug text-foreground"
+                                            value={preview.publicKeyArmored}
+                                        />
+                                    </label>
+                                )}
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                    <Button
+                                        type="button"
+                                        disabled={previewLoading || !preview?.valid}
+                                        onClick={() => void confirmAddPending()}
                                     >
-                                        {preview.valid
-                                            ? t("contacts.reviewValid")
-                                            : t("contacts.reviewInvalid")}
-                                    </p>
-                                    {preview.detectedProtocol && (
-                                        <p className="text-xs text-muted-foreground">
-                                            {t("contacts.reviewProtocol", {
-                                                p: preview.detectedProtocol,
-                                            })}
-                                        </p>
-                                    )}
-                                    {preview.displayName && (
-                                        <p>
-                                            <span className="text-muted-foreground">
-                                                {t("contacts.reviewDisplayName")}
-                                                :&nbsp;
-                                            </span>
-                                            {preview.displayName}
-                                        </p>
-                                    )}
-                                    <p className="whitespace-pre-wrap break-words text-muted-foreground">
-                                        {preview.detail}
-                                    </p>
-                                    {preview.compactKeyPreview && (
-                                        <p className="text-xs text-muted-foreground">
-                                            {t("contacts.reviewCompactPub")}:{" "}
-                                            {preview.compactKeyPreview}
-                                        </p>
-                                    )}
-                                    {preview.publicKeyArmored && (
-                                        <label className="block text-xs text-muted-foreground">
-                                            {t("contacts.reviewPublicKey")}
-                                            <textarea
-                                                readOnly
-                                                spellCheck={false}
-                                                className="mt-1 max-h-64 min-h-[140px] w-full resize-y rounded-md border border-input bg-muted/50 px-3 py-2 font-mono text-xs leading-snug text-foreground"
-                                                value={preview.publicKeyArmored}
-                                            />
-                                        </label>
-                                    )}
-                                    <div className="flex flex-wrap gap-2 pt-1">
-                                        <Button
-                                            type="button"
-                                            disabled={
-                                                previewLoading || !preview?.valid
-                                            }
-                                            onClick={() =>
-                                                void confirmAddPending()
-                                            }
-                                        >
-                                            {t("contacts.addContactConfirm")}
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={discardPendingQr}
-                                        >
-                                            {t("contacts.discardReview")}
-                                        </Button>
-                                    </div>
-                                </>
-                            )}
-                        </ImportQrPreviewShell>
-                    ) : undefined
-                }
-            />
+                                        {t("contacts.addContactConfirm")}
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={discardPendingQr}
+                                    >
+                                        {t("contacts.discardReview")}
+                                    </Button>
+                                </div>
+                            </>
+                        )}
+                    </ImportQrPreviewShell>
+                ) : null}
+            </ImportQrBlock>
 
             {msg && <p className="text-sm text-muted-foreground">{msg}</p>}
 

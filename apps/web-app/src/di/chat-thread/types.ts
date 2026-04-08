@@ -9,6 +9,19 @@ export type DecryptPreviewState =
     | { ok: true; text: string; sig: boolean }
     | { ok: false; err: string }
 
+export type ChatThreadImportState = {
+    data: {
+        raw: VisitCardRawPayload
+        source: ImportSource
+    } | null
+    decryptLoading: boolean
+    decryptPreview: {
+        text: string
+        signaturesValid: boolean
+    } | null
+    decryptErr: string | null
+}
+
 export type ChatThreadState = {
     contactId: string | null
     /** False until first `setActiveContactId` load finishes for current id */
@@ -23,23 +36,11 @@ export type ChatThreadState = {
     warnLen: boolean
     toast: string | null
     exportQrExpanded: boolean
-    importScan: boolean
-    importPending: {
-        raw: VisitCardRawPayload
-        source: ImportSource
-    } | null
-    importDecryptLoading: boolean
-    importDecryptPreview: {
-        text: string
-        signaturesValid: boolean
-    } | null
-    importDecryptErr: string | null
-    pasteQrBusy: boolean
-    encryptBusy: boolean
     listDisable: boolean
     inboundPreview: Record<string, DecryptPreviewState>
     outboundPreview: Record<string, DecryptPreviewState>
     pendingScrollToBottom: boolean
+    import: ChatThreadImportState
 }
 
 export type ChatLoadMoreHandler = (
@@ -53,10 +54,7 @@ export type IChatThreadService = {
     setComposerPlain(value: string): void
     setPasteIn(value: string): void
     setExportQrExpanded(value: boolean): void
-    setImportScan(open: boolean): void
-    setImportPending(
-        pending: ChatThreadState["importPending"],
-    ): void
+    setImportData(data: ChatThreadImportState["data"]): void
     setListItems(items: MessagePlain[]): void
     clearToast(): void
     setToast(message: string | null): void

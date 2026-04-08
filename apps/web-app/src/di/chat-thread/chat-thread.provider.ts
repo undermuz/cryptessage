@@ -19,8 +19,13 @@ import {
 } from "@/lib/qr-zxing/clipboard-qr"
 
 import { PAGE_SIZE, VIEW_COUNT } from "./constants"
-import type { ChatThreadState, IChatThreadService } from "./types"
+import type {
+    ChatThreadImportState,
+    ChatThreadState,
+    IChatThreadService,
+} from "./types"
 import { isCiphertextForRecipientNotSelf } from "./utils"
+import { invariant } from "@/lib/utils"
 
 function createInitialChatThreadState(): ChatThreadState {
     return {
@@ -36,13 +41,12 @@ function createInitialChatThreadState(): ChatThreadState {
         warnLen: false,
         toast: null,
         exportQrExpanded: false,
-        importScan: false,
-        importPending: null,
-        importDecryptLoading: false,
-        importDecryptPreview: null,
-        importDecryptErr: null,
-        pasteQrBusy: false,
-        encryptBusy: false,
+        import: {
+            data: null,
+            decryptLoading: false,
+            decryptPreview: null,
+            decryptErr: null,
+        },
         listDisable: true,
         inboundPreview: {},
         outboundPreview: {},
@@ -118,17 +122,15 @@ export class ChatThreadProvider implements IChatThreadService {
         this.state.exportQrExpanded = value
     }
 
-    public setImportScan(open: boolean): void {
-        this.state.importScan = open
-    }
+    public setImportData(data: ChatThreadImportState["data"]): void {
+        const imp = this.state.import
 
-    public setImportPending(pending: ChatThreadState["importPending"]): void {
-        this.state.importPending = pending
+        imp.data = data
 
-        if (!pending || !this.state.contact) {
-            this.state.importDecryptLoading = false
-            this.state.importDecryptPreview = null
-            this.state.importDecryptErr = null
+        if (!data || !this.state.contact) {
+            imp.decryptLoading = false
+            imp.decryptPreview = null
+            imp.decryptErr = null
             return
         }
 
@@ -215,15 +217,14 @@ export class ChatThreadProvider implements IChatThreadService {
         const contact = this.state.contact
         const plain = this.state.composerPlain
 
-        if (!contactId || !contact || !plain.trim()) {
-            return
-        }
+        invariant(contactId !== null, "Invalid contact ID")
+        invariant(contact !== null, "Invalid contact")
+        invariant(plain.trim().length > 0, "Invalid plain text")
 
         this.state.armoredOut = ""
         this.state.messageQrPayload = null
         this.state.warnLen = false
         this.state.toast = null
-        this.state.encryptBusy = true
 
         try {
             const bundle = await this.conv.encryptOutgoingBundle(
@@ -233,8 +234,10 @@ export class ChatThreadProvider implements IChatThreadService {
 
             this.state.armoredOut = bundle.channelStorage
             this.state.messageQrPayload = bundle.qrPayloadBinary
+
             await this.conv.saveOutboundBundle(contactId, bundle)
             await this.reload()
+
             this.state.composerPlain = ""
 
             if (bundle.qrPayloadBinary.byteLength > QR_MESSAGE_MAX_BYTES) {
@@ -246,9 +249,8 @@ export class ChatThreadProvider implements IChatThreadService {
             const raw = e instanceof Error ? e.message : String(e)
 
             this.state.toast = raw
+
             throw e
-        } finally {
-            this.state.encryptBusy = false
         }
     }
 
@@ -287,10 +289,11 @@ export class ChatThreadProvider implements IChatThreadService {
     }
 
     public async confirmSaveScannedInbound(): Promise<boolean> {
-        const pending = this.state.importPending
+        const imp = this.state.import
+        const data = imp.data
         const contact = this.state.contact
 
-        if (!pending || !contact) {
+        if (!data || !contact) {
             return false
         }
 
@@ -298,7 +301,7 @@ export class ChatThreadProvider implements IChatThreadService {
 
         try {
             const normalized = await this.messaging.normalizeInboundPayload(
-                pending.raw,
+                data.raw,
             )
 
             await this.conv.saveInboundPayload(
@@ -306,9 +309,9 @@ export class ChatThreadProvider implements IChatThreadService {
                 normalized.channelStorage,
                 normalized.cryptoProtocol,
             )
-            this.state.importPending = null
-            this.state.importDecryptPreview = null
-            this.state.importDecryptErr = null
+            imp.data = null
+            imp.decryptPreview = null
+            imp.decryptErr = null
             await this.reload()
             this.state.toast = this.i18n.t("chat.saveInboundOk")
             return true
@@ -321,7 +324,6 @@ export class ChatThreadProvider implements IChatThreadService {
     }
 
     public async pasteMessageQrFromClipboard(): Promise<void> {
-        this.state.pasteQrBusy = true
         this.state.toast = null
 
         try {
@@ -333,18 +335,15 @@ export class ChatThreadProvider implements IChatThreadService {
                 return
             }
 
-            this.setImportPending({ raw: payload, source: "clipboard" })
+            this.setImportData({ raw: payload, source: "clipboard" })
         } catch (e) {
             const reason = e instanceof Error ? e.message : String(e)
 
             this.state.toast = this.i18n.t("contacts.pasteQrFailed", { reason })
-        } finally {
-            this.state.pasteQrBusy = false
         }
     }
 
     public async pickMessageQrFromFile(file: File): Promise<void> {
-        this.state.pasteQrBusy = true
         this.state.toast = null
 
         try {
@@ -356,13 +355,11 @@ export class ChatThreadProvider implements IChatThreadService {
                 return
             }
 
-            this.setImportPending({ raw: payload, source: "file" })
+            this.setImportData({ raw: payload, source: "file" })
         } catch (e) {
             const reason = e instanceof Error ? e.message : String(e)
 
             this.state.toast = this.i18n.t("contacts.pasteQrFailed", { reason })
-        } finally {
-            this.state.pasteQrBusy = false
         }
     }
 
@@ -374,21 +371,22 @@ export class ChatThreadProvider implements IChatThreadService {
 
     private async runImportDecryptPreview(): Promise<void> {
         const gen = ++this.importDecryptGen
-        const pending = this.state.importPending
+        const imp = this.state.import
+        const data = imp.data
         const contact = this.state.contact
 
-        if (!pending || !contact) {
+        if (!data || !contact) {
             return
         }
 
-        this.state.importDecryptLoading = true
-        this.state.importDecryptPreview = null
-        this.state.importDecryptErr = null
+        imp.decryptLoading = true
+        imp.decryptPreview = null
+        imp.decryptErr = null
 
         try {
             const r = await this.messaging.decryptIncoming(
                 contact,
-                typeof pending.raw === "string" ? pending.raw : pending.raw,
+                typeof data.raw === "string" ? data.raw : data.raw,
                 contact.cryptoProtocol,
             )
 
@@ -396,23 +394,23 @@ export class ChatThreadProvider implements IChatThreadService {
                 return
             }
 
-            this.state.importDecryptPreview = r
-            this.state.importDecryptErr = null
+            imp.decryptPreview = r
+            imp.decryptErr = null
         } catch (e) {
             if (gen !== this.importDecryptGen) {
                 return
             }
 
-            this.state.importDecryptPreview = null
+            imp.decryptPreview = null
 
             const raw = e instanceof Error ? e.message : String(e)
 
-            this.state.importDecryptErr = isCiphertextForRecipientNotSelf(raw)
+            imp.decryptErr = isCiphertextForRecipientNotSelf(raw)
                 ? this.i18n.t("chat.errCannotDecryptOwnOutgoing")
                 : raw
         } finally {
             if (gen === this.importDecryptGen) {
-                this.state.importDecryptLoading = false
+                imp.decryptLoading = false
             }
         }
     }

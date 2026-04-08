@@ -17,10 +17,12 @@ export function ChatSendEncryptedDialog({
     open,
     onOpenChange,
     chat,
+    encryptPending,
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
     chat: IChatThreadService
+    encryptPending: boolean
 }) {
     const t = useT()
     const snap = useSnapshot(chat.state)
@@ -52,7 +54,7 @@ export function ChatSendEncryptedDialog({
                     </DialogTitle>
                 </DialogHeader>
                 <div className="max-h-[min(70dvh,36rem)] min-h-0 overflow-y-auto p-4">
-                    {snap.encryptBusy && (
+                    {encryptPending && (
                         <p className="mb-3 text-sm text-muted-foreground">
                             {t("common.loading")}
                         </p>

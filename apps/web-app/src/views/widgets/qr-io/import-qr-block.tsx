@@ -1,10 +1,11 @@
-import { useRef, type ChangeEvent, type ReactNode } from "react"
+import { useRef, useState, type ChangeEvent, type ReactNode } from "react"
 
 import { Button } from "@/views/ui/button"
 import type { VisitCardRawPayload } from "@/di/openpgp-crypto/types"
 import { QrScannerPanel } from "@/views/widgets/qr-scanner"
 
-export type ImportQrLabels = {
+export type ImportQrI18n = {
+    heading: string
     scan: string
     pasteFromImage: string
     /** Label while `pasteBusy` after user clicked Paste (clipboard read + decode). */
@@ -13,26 +14,23 @@ export type ImportQrLabels = {
     pickQrImage?: string
     armoredSectionTitle: string
     armoredSubmit: string
+    armoredPlaceholder: string
 }
 
 type Props = {
-    heading: string
-    labels: ImportQrLabels
-    armoredPlaceholder: string
-    armoredValue: string
-    onArmoredChange: (value: string) => void
-    onArmoredSubmit: () => void
-    armoredSubmitDisabled?: boolean
-    pasteBusy: boolean
-    scanOpen: boolean
-    onOpenScan: () => void
-    onCloseScan: () => void
+    i18n: ImportQrI18n
+    armored: {
+        value: string
+        onChange: (value: string) => void
+        onSubmit: () => void
+    }
+    isProcessing: boolean
     onPasteQrFromImage: () => void
     /** iOS-friendly: decode QR from a photo / screenshot file. */
     onPickQrImageFile?: (file: File) => void
     onScannedPayload: (payload: VisitCardRawPayload) => void
     /** Render when user has scanned/pasted a QR (preview + actions). */
-    preview?: ReactNode
+    children?: ReactNode
     /** Optional field between QR preview and armored paste (e.g. name override). */
     nameHint?: {
         label: string
@@ -42,24 +40,18 @@ type Props = {
 }
 
 export function ImportQrBlock({
-    heading,
-    labels,
-    armoredPlaceholder,
-    armoredValue,
-    onArmoredChange,
-    onArmoredSubmit,
-    armoredSubmitDisabled = false,
-    pasteBusy,
-    scanOpen,
-    onOpenScan,
-    onCloseScan,
+    i18n,
+    armored,
+    isProcessing,
     onPasteQrFromImage,
     onPickQrImageFile,
     onScannedPayload,
-    preview,
+    children,
     nameHint,
 }: Props) {
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const [scanOpen, setScanOpen] = useState(false)
+    const armoredSubmitDisabled = !armored.value.trim()
 
     const onFileChange = (e: ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -73,27 +65,30 @@ export function ImportQrBlock({
 
     return (
         <section className="space-y-3 rounded-lg border border-border p-4">
-            <h2 className="text-sm font-medium">{heading}</h2>
+            <h2 className="text-sm font-medium">{i18n.heading}</h2>
+
             <div className="flex flex-wrap gap-2">
                 <Button
                     type="button"
                     disabled={scanOpen}
-                    onClick={() => onOpenScan()}
+                    onClick={() => setScanOpen(true)}
                 >
-                    {labels.scan}
+                    {i18n.scan}
                 </Button>
+
                 <Button
                     type="button"
                     variant="secondary"
-                    disabled={scanOpen || pasteBusy}
+                    disabled={scanOpen || isProcessing}
                     onClick={() => void onPasteQrFromImage()}
                 >
-                    {pasteBusy
-                        ? (labels.pasteFromImagePending ??
-                          `${labels.pasteFromImage}…`)
-                        : labels.pasteFromImage}
+                    {isProcessing
+                        ? (i18n.pasteFromImagePending ??
+                          `${i18n.pasteFromImage}…`)
+                        : i18n.pasteFromImage}
                 </Button>
-                {onPickQrImageFile && labels.pickQrImage && (
+
+                {onPickQrImageFile && i18n.pickQrImage && (
                     <>
                         <input
                             ref={fileInputRef}
@@ -102,30 +97,35 @@ export function ImportQrBlock({
                             className="sr-only"
                             onChange={onFileChange}
                         />
+
                         <Button
                             type="button"
                             variant="outline"
-                            disabled={scanOpen || pasteBusy}
+                            disabled={scanOpen || isProcessing}
                             onClick={() => fileInputRef.current?.click()}
                         >
-                            {labels.pickQrImage}
+                            {i18n.pickQrImage}
                         </Button>
                     </>
                 )}
             </div>
+
             {scanOpen && (
                 <QrScannerPanel
                     onResult={(payload) => {
-                        onCloseScan()
+                        setScanOpen(false)
                         onScannedPayload(payload)
                     }}
-                    onClose={() => onCloseScan()}
+                    onClose={() => setScanOpen(false)}
                 />
             )}
-            {preview}
+
+            {children}
+
             {nameHint && (
                 <label className="block text-xs text-muted-foreground">
                     {nameHint.label}
+
                     <input
                         className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
                         value={nameHint.value}
@@ -133,23 +133,26 @@ export function ImportQrBlock({
                     />
                 </label>
             )}
+
             <div className="space-y-2 border-t border-border pt-3">
                 <h3 className="text-xs font-medium text-muted-foreground">
-                    {labels.armoredSectionTitle}
+                    {i18n.armoredSectionTitle}
                 </h3>
+
                 <textarea
                     className="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono text-xs"
-                    value={armoredValue}
-                    placeholder={armoredPlaceholder}
-                    onChange={(e) => onArmoredChange(e.target.value)}
+                    value={armored.value}
+                    placeholder={i18n.armoredPlaceholder}
+                    onChange={(e) => armored.onChange(e.target.value)}
                     spellCheck={false}
                 />
+
                 <Button
                     type="button"
                     disabled={armoredSubmitDisabled}
-                    onClick={() => onArmoredSubmit()}
+                    onClick={() => armored.onSubmit()}
                 >
-                    {labels.armoredSubmit}
+                    {i18n.armoredSubmit}
                 </Button>
             </div>
         </section>
