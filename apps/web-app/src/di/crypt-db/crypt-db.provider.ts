@@ -26,6 +26,7 @@ export class CryptDb implements CryptDbService {
 
         this.db = await new Promise((resolve, reject) => {
             const req = indexedDB.open(CRYPT_DB_NAME, CRYPT_DB_VERSION)
+
             req.onerror = () => reject(req.error)
             req.onsuccess = () => resolve(req.result)
 
@@ -48,6 +49,7 @@ export class CryptDb implements CryptDbService {
                     const s = idb.createObjectStore(STORE_MESSAGES, {
                         keyPath: "id",
                     })
+
                     s.createIndex("byContact", "contactId", { unique: false })
                 }
             }
@@ -64,6 +66,7 @@ export class CryptDb implements CryptDbService {
 
     public async readSalt(): Promise<Uint8Array | null> {
         await this.open()
+
         const idb = this.requireDb()
         const raw = await this.txGet<string>(idb, STORE_META, KEY_SALT)
 
@@ -76,12 +79,15 @@ export class CryptDb implements CryptDbService {
 
     public async writeSalt(salt: Uint8Array): Promise<void> {
         await this.open()
+
         const idb = this.requireDb()
+
         await this.txPutMeta(idb, KEY_SALT, bytesToBase64(salt))
     }
 
     public async readMetaEncrypted(key: string): Promise<EncryptedBlob | null> {
         await this.open()
+
         const idb = this.requireDb()
         const raw = await this.txGet<string>(idb, STORE_META, key)
 
@@ -94,12 +100,15 @@ export class CryptDb implements CryptDbService {
 
     public async writeMetaJson(key: string, blob: EncryptedBlob): Promise<void> {
         await this.open()
+
         const idb = this.requireDb()
+
         await this.txPutMeta(idb, key, JSON.stringify(blob))
     }
 
     public async getIdentity(masterKey: CryptoKey): Promise<IdentityPlain | null> {
         await this.open()
+
         const idb = this.requireDb()
         const row = await this.txGet<EncryptedRow>(
             idb,
@@ -112,6 +121,7 @@ export class CryptDb implements CryptDbService {
         }
 
         const json = await decryptUtf8(masterKey, row.blob)
+
         return JSON.parse(json) as IdentityPlain
     }
 
@@ -120,19 +130,23 @@ export class CryptDb implements CryptDbService {
         identity: IdentityPlain,
     ): Promise<void> {
         await this.open()
+
         const idb = this.requireDb()
         const blob = await encryptUtf8(masterKey, JSON.stringify(identity))
+
         await this.txPutByKey(idb, STORE_IDENTITY, KEY_PROFILE, { blob })
     }
 
     public async listContacts(masterKey: CryptoKey): Promise<ContactPlain[]> {
         await this.open()
+
         const idb = this.requireDb()
         const rows = await this.getAll<ContactRow>(idb, STORE_CONTACTS)
         const out: ContactPlain[] = []
 
         for (const row of rows) {
             const json = await decryptUtf8(masterKey, row.blob)
+
             out.push(normalizeContact(JSON.parse(json) as ContactPlain))
         }
 
@@ -141,15 +155,20 @@ export class CryptDb implements CryptDbService {
 
     public async saveContact(masterKey: CryptoKey, c: ContactPlain): Promise<void> {
         await this.open()
+
         const idb = this.requireDb()
         const blob = await encryptUtf8(masterKey, JSON.stringify(c))
+
         await this.txPutRow(idb, STORE_CONTACTS, { id: c.id, blob })
     }
 
     public async deleteContact(masterKey: CryptoKey, id: string): Promise<void> {
         await this.open()
+
         const idb = this.requireDb()
+
         await this.txDelete(idb, STORE_CONTACTS, id)
+
         const msgs = await this.listMessages(masterKey, id)
 
         for (const m of msgs) {
@@ -162,6 +181,7 @@ export class CryptDb implements CryptDbService {
         contactId: string,
     ): Promise<MessagePlain[]> {
         await this.open()
+
         const idb = this.requireDb()
         const rows = await this.getByIndex<MessageRow>(
             idb,
@@ -173,6 +193,7 @@ export class CryptDb implements CryptDbService {
 
         for (const row of rows) {
             const json = await decryptUtf8(masterKey, row.blob)
+
             out.push(normalizeMessage(JSON.parse(json) as MessagePlain))
         }
 
@@ -181,8 +202,10 @@ export class CryptDb implements CryptDbService {
 
     public async saveMessage(masterKey: CryptoKey, m: MessagePlain): Promise<void> {
         await this.open()
+
         const idb = this.requireDb()
         const blob = await encryptUtf8(masterKey, JSON.stringify(m))
+
         await this.txPutRow(idb, STORE_MESSAGES, {
             id: m.id,
             contactId: m.contactId,
@@ -208,6 +231,7 @@ export class CryptDb implements CryptDbService {
 
         for (const row of allMsgRows) {
             const json = await decryptUtf8(masterKey, row.blob)
+
             messages.push(normalizeMessage(JSON.parse(json) as MessagePlain))
         }
 
@@ -226,7 +250,9 @@ export class CryptDb implements CryptDbService {
         await this.wipe()
         await this.open()
         await this.writeSalt(salt)
+
         const check = await encryptUtf8(masterKey, "cryptessage_vault_ok")
+
         await this.writeMetaJson("_check", check)
         await this.saveIdentity(masterKey, data.identity)
 
@@ -244,6 +270,7 @@ export class CryptDb implements CryptDbService {
         this.db = null
         await new Promise<void>((resolve, reject) => {
             const req = indexedDB.deleteDatabase(CRYPT_DB_NAME)
+
             req.onsuccess = () => resolve()
             req.onerror = () => reject(req.error)
         })
@@ -254,6 +281,7 @@ export class CryptDb implements CryptDbService {
             const tx = idb.transaction(store, "readonly")
             const os = tx.objectStore(store)
             const r = os.get(key)
+
             r.onerror = () => reject(r.error)
             r.onsuccess = () => resolve(r.result as T | undefined)
         })
@@ -264,6 +292,7 @@ export class CryptDb implements CryptDbService {
             const tx = idb.transaction(STORE_META, "readwrite")
             const os = tx.objectStore(STORE_META)
             const r = os.put(value, key)
+
             r.onerror = () => reject(r.error)
             r.onsuccess = () => resolve()
         })
@@ -279,6 +308,7 @@ export class CryptDb implements CryptDbService {
             const tx = idb.transaction(store, "readwrite")
             const os = tx.objectStore(store)
             const r = os.put(value, key)
+
             r.onerror = () => reject(r.error)
             r.onsuccess = () => resolve()
         })
@@ -293,6 +323,7 @@ export class CryptDb implements CryptDbService {
             const tx = idb.transaction(store, "readwrite")
             const os = tx.objectStore(store)
             const r = os.put(value)
+
             r.onerror = () => reject(r.error)
             r.onsuccess = () => resolve()
         })
@@ -303,6 +334,7 @@ export class CryptDb implements CryptDbService {
             const tx = idb.transaction(store, "readwrite")
             const os = tx.objectStore(store)
             const r = os.delete(key)
+
             r.onerror = () => reject(r.error)
             r.onsuccess = () => resolve()
         })
@@ -313,6 +345,7 @@ export class CryptDb implements CryptDbService {
             const tx = idb.transaction(store, "readonly")
             const os = tx.objectStore(store)
             const r = os.getAll()
+
             r.onerror = () => reject(r.error)
             r.onsuccess = () => resolve((r.result as T[]) ?? [])
         })
@@ -329,6 +362,7 @@ export class CryptDb implements CryptDbService {
             const os = tx.objectStore(store)
             const idx = os.index(indexName)
             const r = idx.getAll(query)
+
             r.onerror = () => reject(r.error)
             r.onsuccess = () => resolve((r.result as T[]) ?? [])
         })

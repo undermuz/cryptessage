@@ -28,6 +28,7 @@ export function resolveTheme(preference: ThemePreference): "light" | "dark" {
 /** Applies `.dark` on `<html>` and returns the resolved scheme. */
 export function applyThemeClass(preference: ThemePreference): "light" | "dark" {
     const resolved = resolveTheme(preference)
+
     document.documentElement.classList.toggle("dark", resolved === "dark")
     return resolved
 }
@@ -85,6 +86,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         const r = applyThemeClass(preference)
+
         setResolved(r)
         syncThemeColorMeta(r)
     }, [preference])
@@ -98,6 +100,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
         const onChange = () => {
             const r = applyThemeClass("system")
+
             setResolved(r)
             syncThemeColorMeta(r)
         }

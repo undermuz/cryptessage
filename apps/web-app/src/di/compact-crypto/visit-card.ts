@@ -20,6 +20,7 @@ export function isCompactVisitCardV1(bytes: Uint8Array): boolean {
     }
 
     const nameLen = bytes[65] ?? 0
+
     return 66 + nameLen === bytes.byteLength && nameLen <= 255
 }
 
@@ -69,5 +70,6 @@ export function decodeVisitCardV1(bytes: Uint8Array): CompactVisitCardDecoded {
 
     const nameBytes = bytes.subarray(66, 66 + nameLen)
     const displayName = new TextDecoder().decode(nameBytes)
+
     return { displayName, x25519PublicKey, ed25519PublicKey }
 }

@@ -24,6 +24,7 @@ export class AuthProvider implements IAuthService {
 
     public async hasVault(): Promise<boolean> {
         const salt = await this.db.readSalt()
+
         return salt !== null
     }
 
@@ -45,9 +46,12 @@ export class AuthProvider implements IAuthService {
         }
 
         const salt = crypto.getRandomValues(new Uint8Array(16))
+
         await this.db.writeSalt(salt)
+
         const key = await deriveAesGcmKey(passphrase, salt)
         const check = await encryptUtf8(key, CHECK_STRING)
+
         await this.db.writeMetaJson("_check", check)
         this.masterKey = key
     }

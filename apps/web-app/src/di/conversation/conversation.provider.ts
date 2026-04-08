@@ -48,6 +48,7 @@ export class ConversationProvider implements IConversationService {
             }
 
             const v = decodeVisitCardV1(bytes)
+
             return {
                 id: crypto.randomUUID(),
                 displayName:
@@ -107,7 +108,9 @@ export class ConversationProvider implements IConversationService {
         }
 
         const parsed = await this.pgp.parseVisitCard(rawCard)
+
         await this.pgp.validatePublicKeyArmored(parsed.publicKeyArmored)
+
         const c: ContactPlain = {
             id: crypto.randomUUID(),
             displayName:
@@ -118,6 +121,7 @@ export class ConversationProvider implements IConversationService {
             publicKeyArmored: parsed.publicKeyArmored,
             createdAt: Date.now(),
         }
+
         await this.db.saveContact(key, c)
         return c
     }
@@ -128,6 +132,7 @@ export class ConversationProvider implements IConversationService {
 
     public async getContact(id: string): Promise<ContactPlain | null> {
         const all = await this.listContacts()
+
         return all.find((c) => c.id === id) ?? null
     }
 
@@ -168,6 +173,7 @@ export class ConversationProvider implements IConversationService {
             outboundSelfPayload: bundle.outboundSelfStorage,
             createdAt: Date.now(),
         }
+
         await this.db.saveMessage(key, m)
         return m
     }
@@ -186,6 +192,7 @@ export class ConversationProvider implements IConversationService {
             channelPayload,
             createdAt: Date.now(),
         }
+
         await this.db.saveMessage(key, m)
         return m
     }

@@ -28,6 +28,10 @@ export default [
                 { blankLine: "always", prev: "const", next: "block-like" },
                 { blankLine: "always", prev: "let", next: "block-like" },
                 { blankLine: "always", prev: "expression", next: "block-like" },
+
+                { blankLine: "always", prev: "const", next: "return" },
+                { blankLine: "always", prev: "const", next: "expression" },
+                { blankLine: "always", prev: "expression", next: "const" },
             ],
         },
     },

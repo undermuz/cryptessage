@@ -70,6 +70,7 @@ export function SettingsWidget() {
             const blob = new Blob([json], { type: "application/json" })
             const url = URL.createObjectURL(blob)
             const a = document.createElement("a")
+
             a.href = url
             a.download = `cryptessage-backup-${Date.now()}.json`
             a.click()
@@ -112,6 +113,7 @@ export function SettingsWidget() {
                     value={visitCardFormat}
                     onChange={(e) => {
                         const v = e.target.value as CryptoProtocolId
+
                         setVisitCardFormat(v)
 
                         void (async () => {
@@ -126,6 +128,7 @@ export function SettingsWidget() {
                             } catch (ex) {
                                 const reason =
                                     ex instanceof Error ? ex.message : String(ex)
+
                                 setCryptErr(reason)
                             }
                         })()

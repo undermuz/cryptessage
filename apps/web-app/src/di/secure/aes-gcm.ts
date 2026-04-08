@@ -17,6 +17,7 @@ export async function aesGcmEncrypt(
             plaintext as BufferSource,
         ),
     )
+
     return {
         ivB64: bytesToBase64(iv),
         ciphertextB64: bytesToBase64(ct),
@@ -29,6 +30,7 @@ export async function aesGcmDecrypt(
 ): Promise<Uint8Array> {
     const iv = base64ToBytes(blob.ivB64)
     const ciphertext = base64ToBytes(blob.ciphertextB64)
+
     return new Uint8Array(
         await crypto.subtle.decrypt(
             { name: "AES-GCM", iv: iv as BufferSource },

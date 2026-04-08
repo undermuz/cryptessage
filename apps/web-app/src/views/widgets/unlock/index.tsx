@@ -33,6 +33,7 @@ export function UnlockWidget() {
             }
         })
     }, [auth])
+
     const [pass, setPass] = useState("")
     const [pass2, setPass2] = useState("")
     const [name, setName] = useState("")
@@ -42,6 +43,7 @@ export function UnlockWidget() {
 
     const goNext = () => {
         const target = search.redirect?.startsWith("/") ? search.redirect : "/"
+
         void navigate({ to: target })
     }
 

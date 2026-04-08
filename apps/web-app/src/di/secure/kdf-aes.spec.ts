@@ -12,6 +12,7 @@ describe("deriveAesGcmKey + AES-GCM", () => {
             new TextEncoder().encode('{"x":1,"note":"привет"}'),
         )
         const out = await decryptUtf8(key, blob)
+
         expect(JSON.parse(out)).toEqual({ x: 1, note: "привет" })
     })
 })

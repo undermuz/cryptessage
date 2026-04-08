@@ -32,6 +32,7 @@ export class CryptoPrefsProvider implements ICryptoPrefsService {
 
         const raw = await decryptUtf8(mk, blob)
         const j = JSON.parse(raw) as PrefsJson
+
         return j.defaultVisitCardFormat === "compact_v1"
             ? "compact_v1"
             : DEFAULT_CRYPTO_PROTOCOL
@@ -43,6 +44,7 @@ export class CryptoPrefsProvider implements ICryptoPrefsService {
         const mk = this.auth.getMasterKey()
         const payload: PrefsJson = { defaultVisitCardFormat: protocol }
         const blob = await encryptUtf8(mk, JSON.stringify(payload))
+
         await this.db.writeMetaJson(META_KEY, blob)
     }
 }

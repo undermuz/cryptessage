@@ -26,6 +26,7 @@ export class VaultBackupProvider implements IVaultBackupService {
         }
 
         const plain = await this.db.exportPlain(key)
+
         return buildBackupFile(key, salt, plain)
     }
 
@@ -35,6 +36,7 @@ export class VaultBackupProvider implements IVaultBackupService {
     ): Promise<void> {
         const { salt, plain } = await readBackupPlain(passphrase, fileJson)
         const masterKey = await deriveAesGcmKey(passphrase, salt)
+
         await this.db.importFullState(masterKey, salt, plain)
         this.auth.adoptUnlockedMasterKey(masterKey)
     }

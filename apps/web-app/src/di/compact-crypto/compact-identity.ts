@@ -8,6 +8,7 @@ export function generateCompactIdentitySecrets(): CompactIdentitySecrets {
     const xPub = x25519.getPublicKey(xSec)
     const edSec = ed25519.utils.randomSecretKey()
     const edPub = ed25519.getPublicKey(edSec)
+
     return {
         x25519PublicKeyB64: bytesToBase64(xPub),
         x25519SecretKeyB64: bytesToBase64(xSec),

@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router"
 import { Inbox } from "lucide-react"
+import { useSnapshot } from "valtio/react"
 
-import type { ContactPlain } from "@/di/crypt-db/types-data"
+import type { IChatThreadService } from "@/di/chat-thread/types"
 import { useT } from "@/di/react/hooks/useT"
 import { Button, buttonVariants } from "@/views/ui/button"
 import { cn } from "@/lib/utils"
@@ -9,13 +10,19 @@ import { cn } from "@/lib/utils"
 import { initialsFromName } from "./utils"
 
 export function ChatThreadHeader({
-    contact,
+    chat,
     onReceiveClick,
 }: {
-    contact: ContactPlain
+    chat: IChatThreadService
     onReceiveClick: () => void
 }) {
     const t = useT()
+    const snap = useSnapshot(chat.state)
+    const contact = snap.contact
+
+    if (!contact) {
+        return null
+    }
 
     return (
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-card/90 px-3 py-3 backdrop-blur-sm">

@@ -22,6 +22,7 @@ export class IdentityProvider implements IIdentityService {
     public async hasIdentity(): Promise<boolean> {
         const key = this.auth.getMasterKey()
         const id = await this.db.getIdentity(key)
+
         return id !== null
     }
 
@@ -39,6 +40,7 @@ export class IdentityProvider implements IIdentityService {
             curve: "ed25519Legacy",
             format: "armored",
         })
+
         await this.db.saveIdentity(key, {
             publicKeyArmored: publicKey,
             privateKeyArmored: privateKey,
@@ -78,6 +80,7 @@ export class IdentityProvider implements IIdentityService {
     public async getFingerprintHex(): Promise<string> {
         const armored = await this.getPublicKeyArmored()
         const pub = await openpgp.readKey({ armoredKey: armored })
+
         return pub.getFingerprint().toUpperCase()
     }
 
@@ -89,6 +92,7 @@ export class IdentityProvider implements IIdentityService {
 
         if (typeof raw === "string" && raw.trim()) {
             const namePart = raw.includes("<") ? raw.split("<")[0].trim() : raw
+
             return namePart || "User"
         }
 
@@ -97,6 +101,7 @@ export class IdentityProvider implements IIdentityService {
 
     public async buildCompactVisitCard(displayName: string): Promise<Uint8Array> {
         await this.ensureCompactIdentity()
+
         const key = this.auth.getMasterKey()
         const id = await this.db.getIdentity(key)
 
@@ -106,6 +111,7 @@ export class IdentityProvider implements IIdentityService {
 
         const xPub = base64ToBytes(id.compactIdentity.x25519PublicKeyB64)
         const edPub = base64ToBytes(id.compactIdentity.ed25519PublicKeyB64)
+
         return encodeVisitCardV1(displayName.trim() || "User", xPub, edPub)
     }
 }

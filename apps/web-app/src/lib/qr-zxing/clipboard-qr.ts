@@ -1,7 +1,8 @@
 import { BrowserQRCodeReader } from "@zxing/browser"
 
 import type { VisitCardRawPayload } from "@/di/openpgp-crypto/types"
-import { zxingCryptessagePayloadFromResult } from "@/views/widgets/qr-scanner/zxing-qr-payload"
+
+import { zxingCryptessagePayloadFromResult } from "./zxing-qr-payload"
 
 export async function decodeQrFromImageBlob(
     reader: BrowserQRCodeReader,
@@ -16,8 +17,10 @@ export async function decodeQrFromImageBlob(
     }
 
     const canvas = document.createElement("canvas")
+
     canvas.width = bitmap.width
     canvas.height = bitmap.height
+
     const ctx = canvas.getContext("2d")
 
     if (!ctx) {

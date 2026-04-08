@@ -39,7 +39,7 @@ import { ImportQrPreviewShell } from "@/views/widgets/qr-io/import-qr-preview-sh
 import {
     decodeQrFromClipboardImage,
     decodeQrFromImageBlob,
-} from "@/views/widgets/qr-scanner/clipboard-qr"
+} from "@/lib/qr-zxing/clipboard-qr"
 
 type PendingQrSource = "camera" | "clipboard" | "file"
 
@@ -149,6 +149,7 @@ export function ContactsWidget() {
                     (mode === "compact_v1" || mode === "auto")
                 ) {
                     const v = decodeVisitCardV1(bytes)
+
                     return {
                         valid: true,
                         detail: t("contacts.reviewCompactValid"),
@@ -168,6 +169,7 @@ export function ContactsWidget() {
 
             try {
                 const parsed = await pgp.parseVisitCard(raw)
+
                 await pgp.validatePublicKeyArmored(parsed.publicKeyArmored)
                 return {
                     valid: true,
@@ -228,7 +230,9 @@ export function ContactsWidget() {
 
         if (format === "compact_v1") {
             await identity.ensureCompactIdentity()
+
             const raw = await identity.buildCompactVisitCard(name)
+
             setCardPayload(raw)
             setCardJson(bytesToBase64(raw))
             return
@@ -236,6 +240,7 @@ export function ContactsWidget() {
 
         const raw = await pgp.buildVisitCardBinary(name)
         const json = await pgp.buildVisitCard(name)
+
         setCardPayload(raw)
         setCardJson(json)
     }
@@ -270,7 +275,9 @@ export function ContactsWidget() {
             return true
         } catch (e) {
             console.error("[contacts] addContactFromVisitCard", e)
+
             const reason = e instanceof Error ? e.message : String(e)
+
             setMsg(t("contacts.addFailed", { reason }))
             return false
         }
@@ -297,6 +304,7 @@ export function ContactsWidget() {
             setPendingQr({ raw: payload, source: "clipboard" })
         } catch (e) {
             const reason = e instanceof Error ? e.message : String(e)
+
             setMsg(t("contacts.pasteQrFailed", { reason }))
         } finally {
             setPasteBusy(false)
@@ -320,6 +328,7 @@ export function ContactsWidget() {
                 setPendingQr({ raw: payload, source: "file" })
             } catch (e) {
                 const reason = e instanceof Error ? e.message : String(e)
+
                 setMsg(t("contacts.pasteQrFailed", { reason }))
             } finally {
                 setPasteBusy(false)

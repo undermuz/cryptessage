@@ -70,6 +70,7 @@ export function unwrapCompactBinaryFromMessageQr(bytes: Uint8Array): Uint8Array 
         (bytes[o + 1] << 16) |
         (bytes[o + 2] << 8) |
         bytes[o + 3]
+
     o += 4
 
     if (keyLen < 1 || o + keyLen > bytes.byteLength) {
@@ -135,6 +136,7 @@ export function unwrapOpenPgpBinaryFromMessageQr(bytes: Uint8Array): Uint8Array 
         (bytes[o + 1] << 16) |
         (bytes[o + 2] << 8) |
         bytes[o + 3]
+
     o += 4
 
     if (keyLen < 1 || o + keyLen > bytes.byteLength) {

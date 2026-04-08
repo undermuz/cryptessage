@@ -13,6 +13,7 @@ describe("compact visit card v1", () => {
         const edPub = new Uint8Array(32).fill(7)
         const enc = encodeVisitCardV1("Alice", xPub, edPub)
         const dec = decodeVisitCardV1(enc)
+
         expect(dec.displayName).toBe("Alice")
         expect(dec.x25519PublicKey).toEqual(xPub)
         expect(dec.ed25519PublicKey).toEqual(edPub)
@@ -38,6 +39,7 @@ describe("compact message v1", () => {
             recipientSec,
             senderEdPub,
         )
+
         expect(out.text).toBe(plain)
         expect(out.signaturesValid).toBe(true)
     })
@@ -55,6 +57,7 @@ describe("compact message v1", () => {
             senderSec,
             senderEdSec,
         )
+
         expect(() =>
             decryptCompactMessage(packet, wrongSec, senderEdPub),
         ).toThrow()

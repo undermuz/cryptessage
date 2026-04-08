@@ -97,6 +97,7 @@ export function ExportQrBlock({
                 onNotify(labels.copyQrOk)
             } catch (e) {
                 const reason = e instanceof Error ? e.message : String(e)
+
                 onNotify(labels.copyQrFail(reason))
             }
         }, "image/png")
@@ -143,6 +144,7 @@ export function ExportQrBlock({
                 }
 
                 const reason = e instanceof Error ? e.message : String(e)
+
                 onNotify(labels.shareFail(reason))
             }
         }, "image/png")
@@ -156,6 +158,7 @@ export function ExportQrBlock({
             onNotify(labels.copyArmoredOk)
         } catch (e) {
             const reason = e instanceof Error ? e.message : String(e)
+
             onNotify(labels.copyQrFail(reason))
         }
     }

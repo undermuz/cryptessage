@@ -1,6 +1,6 @@
-import type { ContactPlain } from "@/di/crypt-db/types-data"
 import { QR_MESSAGE_MAX_BYTES } from "@/di/secure/constants"
 import { useT } from "@/di/react/hooks/useT"
+import { useSnapshot } from "valtio/react"
 import {
     ExportQrBlock,
     type ExportQrLabels,
@@ -11,33 +11,34 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/views/ui/dialog"
+import type { IChatThreadService } from "@/di/chat-thread/types"
 
 export function ChatSendEncryptedDialog({
     open,
     onOpenChange,
-    encryptBusy,
-    armoredOut,
-    messageQrPayload,
-    contact,
-    exportQrExpanded,
-    onExpandedChange,
-    warnLen,
-    exportLabels,
-    onNotify,
+    chat,
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
-    encryptBusy: boolean
-    armoredOut: string
-    messageQrPayload: Uint8Array | null
-    contact: ContactPlain
-    exportQrExpanded: boolean
-    onExpandedChange: (v: boolean) => void
-    warnLen: boolean
-    exportLabels: ExportQrLabels
-    onNotify: (msg: string | null) => void
+    chat: IChatThreadService
 }) {
     const t = useT()
+    const snap = useSnapshot(chat.state)
+    const contact = snap.contact
+
+    const exportLabels: ExportQrLabels = {
+        showQr: t("contacts.showQr"),
+        hideQr: t("contacts.hideQr"),
+        copyQrImage: t("contacts.copyQr"),
+        shareQr: t("contacts.shareQr"),
+        copyArmored: t("chat.copyArmored"),
+        copyQrUnavailable: t("contacts.copyQrUnavailable"),
+        copyQrFail: (reason) => t("contacts.copyQrFail", { reason }),
+        copyQrOk: t("contacts.copyQrOk"),
+        copyArmoredOk: t("chat.copyArmoredOk"),
+        shareUnavailable: t("contacts.shareUnavailable"),
+        shareFail: (reason) => t("contacts.shareFail", { reason }),
+    }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -51,21 +52,21 @@ export function ChatSendEncryptedDialog({
                     </DialogTitle>
                 </DialogHeader>
                 <div className="max-h-[min(70dvh,36rem)] min-h-0 overflow-y-auto p-4">
-                    {encryptBusy && (
+                    {snap.encryptBusy && (
                         <p className="mb-3 text-sm text-muted-foreground">
                             {t("common.loading")}
                         </p>
                     )}
-                    {armoredOut && messageQrPayload && (
+                    {contact && snap.armoredOut && snap.messageQrPayload && (
                         <ExportQrBlock
                             heading={t("chat.exportEncryptedSection")}
                             labels={exportLabels}
-                            expanded={exportQrExpanded}
-                            onExpandedChange={onExpandedChange}
-                            qrPayload={messageQrPayload}
+                            expanded={snap.exportQrExpanded}
+                            onExpandedChange={(v) => chat.setExportQrExpanded(v)}
+                            qrPayload={snap.messageQrPayload}
                             maxByteLength={QR_MESSAGE_MAX_BYTES}
-                            armoredText={armoredOut}
-                            onNotify={onNotify}
+                            armoredText={snap.armoredOut}
+                            onNotify={(msg) => chat.setToast(msg)}
                             showArmoredPreview
                             footer={
                                 <div className="space-y-2 text-xs text-muted-foreground">
@@ -81,7 +82,7 @@ export function ChatSendEncryptedDialog({
                                     </p>
                                 </div>
                             }
-                            oversizeWarning={warnLen}
+                            oversizeWarning={snap.warnLen}
                             oversizeMessage={
                                 <p className="text-xs text-destructive">
                                     {t("chat.qrTooLarge", {

@@ -41,6 +41,7 @@ export const VisitQrCanvas = forwardRef<HTMLCanvasElement, Props>(
         )
 
         const onDrawCompleteRef = useRef(onDrawComplete)
+
         onDrawCompleteRef.current = onDrawComplete
 
         useEffect(() => {

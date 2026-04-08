@@ -20,6 +20,7 @@ import { CryptoPrefsModule } from "./crypto-prefs/module"
 import { MessagingCryptoModule } from "./messaging-crypto/module"
 import { VaultBackupModule } from "./vault-backup/module"
 import { ConversationModule } from "./conversation/module"
+import { ChatThreadModule } from "./chat-thread/module"
 import { AppModule } from "./app/app.module"
 
 export const createDiContainer = () => {
@@ -45,6 +46,7 @@ export const createDiContainer = () => {
     di.load(MessagingCryptoModule)
     di.load(VaultBackupModule)
     di.load(ConversationModule)
+    di.load(ChatThreadModule)
     di.load(AppModule)
 
     return di

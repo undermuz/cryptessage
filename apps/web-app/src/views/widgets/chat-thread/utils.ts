@@ -6,10 +6,6 @@ export function payloadByteLength(raw: VisitCardRawPayload): number {
         : raw.byteLength
 }
 
-export function isCiphertextForRecipientNotSelf(errMsg: string): boolean {
-    return /no decryption key packets found/i.test(errMsg)
-}
-
 export function initialsFromName(name: string): string {
     const parts = name.trim().split(/\s+/).filter(Boolean)
 

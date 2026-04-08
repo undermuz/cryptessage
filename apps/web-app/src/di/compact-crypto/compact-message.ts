@@ -18,6 +18,7 @@ function deriveAeadKey(sharedSecret: Uint8Array): Uint8Array {
     const payload = new Uint8Array(
         sharedSecret.byteLength + KDF_INFO.byteLength,
     )
+
     payload.set(sharedSecret, 0)
     payload.set(KDF_INFO, sharedSecret.byteLength)
     return sha256(payload)
@@ -56,8 +57,10 @@ export function encryptCompactMessage(
     }
 
     const inner = new Uint8Array(plainBytes.byteLength + signature.byteLength)
+
     inner.set(plainBytes, 0)
     inner.set(signature, plainBytes.byteLength)
+
     const nonce = crypto.getRandomValues(new Uint8Array(NONCE_LEN))
     const sealed = secretbox(aeadKey, nonce).seal(inner)
 
@@ -105,8 +108,10 @@ export function decryptCompactMessage(
     const mac = packet.subarray(57, 73)
     const encPayload = packet.subarray(73)
     const sealed = new Uint8Array(encPayload.byteLength + mac.byteLength)
+
     sealed.set(encPayload, 0)
     sealed.set(mac, encPayload.byteLength)
+
     const shared = x25519.getSharedSecret(
         recipientX25519SecretKey,
         ephemeralPublic,

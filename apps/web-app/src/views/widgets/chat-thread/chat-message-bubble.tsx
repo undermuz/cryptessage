@@ -1,12 +1,13 @@
 import type { MessagePlain } from "@/di/crypt-db/types-data"
 import { useT } from "@/di/react/hooks/useT"
-import type { DecryptPreviewState } from "./types"
+import { useSnapshot } from "valtio/react"
+import type { IChatThreadService } from "@/di/chat-thread/types"
 
 function renderBody(
     t: (key: string, options?: Record<string, unknown>) => string,
     m: MessagePlain,
-    inboundPreview: Record<string, DecryptPreviewState>,
-    outboundPreview: Record<string, DecryptPreviewState>,
+    inboundPreview: IChatThreadService["state"]["inboundPreview"],
+    outboundPreview: IChatThreadService["state"]["outboundPreview"],
 ) {
     const selfPayload = m.outboundSelfPayload ?? m.outboundSelfArmored
 
@@ -75,14 +76,13 @@ function renderBody(
 
 export function ChatMessageBubble({
     message: m,
-    inboundPreview,
-    outboundPreview,
+    chat,
 }: {
     message: MessagePlain
-    inboundPreview: Record<string, DecryptPreviewState>
-    outboundPreview: Record<string, DecryptPreviewState>
+    chat: IChatThreadService
 }) {
     const t = useT()
+    const snap = useSnapshot(chat.state)
     const mine = m.direction === "out"
 
     return (
@@ -93,7 +93,7 @@ export function ChatMessageBubble({
                     : "rounded-bl-md border border-border bg-background text-foreground"
             }`}
         >
-            {renderBody(t, m, inboundPreview, outboundPreview)}
+            {renderBody(t, m, snap.inboundPreview, snap.outboundPreview)}
             <time
                 className={`mt-1 block text-end text-[9px] font-medium uppercase tracking-tight ${
                     mine

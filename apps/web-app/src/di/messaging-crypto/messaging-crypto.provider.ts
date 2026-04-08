@@ -81,6 +81,7 @@ export class MessagingCryptoProvider implements IMessagingCryptoService {
                 xSec,
                 edSec,
             )
+
             return {
                 channelStorage: bytesToBase64(packet),
                 outboundSelfStorage: bytesToBase64(selfPacket),
@@ -103,6 +104,7 @@ export class MessagingCryptoProvider implements IMessagingCryptoService {
             plaintext,
             identity.publicKeyArmored,
         )
+
         return {
             channelStorage: bundle.armored,
             outboundSelfStorage: selfArmored,
@@ -134,6 +136,7 @@ export class MessagingCryptoProvider implements IMessagingCryptoService {
             }
 
             const senderEd = base64ToBytes(edB64)
+
             return decryptCompactMessage(bytes, rx, senderEd)
         }
 
@@ -185,6 +188,7 @@ export class MessagingCryptoProvider implements IMessagingCryptoService {
         }
 
         const armored = await this.pgp.ciphertextToArmored(inner)
+
         return { channelStorage: armored, cryptoProtocol: "openpgp" }
     }
 
@@ -202,6 +206,7 @@ export class MessagingCryptoProvider implements IMessagingCryptoService {
             const bytes = base64ToBytes(channelPayload.trim())
             const rx = base64ToBytes(id.compactIdentity.x25519SecretKeyB64)
             const selfEd = base64ToBytes(id.compactIdentity.ed25519PublicKeyB64)
+
             return decryptCompactMessage(bytes, rx, selfEd)
         }
 

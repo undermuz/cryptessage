@@ -55,6 +55,7 @@ export async function buildBackupFile(
         ivB64: blob.ivB64,
         ciphertextB64: blob.ciphertextB64,
     }
+
     return serializeBackupFile(file)
 }
 
@@ -91,5 +92,6 @@ export async function decryptPlainPayload(
     blob: EncryptedBlob,
 ): Promise<BackupPlainPayload> {
     const utf8 = await decryptUtf8(masterKey, blob)
+
     return JSON.parse(utf8) as BackupPlainPayload
 }

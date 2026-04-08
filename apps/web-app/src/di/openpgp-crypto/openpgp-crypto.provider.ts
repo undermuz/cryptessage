@@ -25,6 +25,7 @@ const PUBLIC_KEY_ARMOR =
 
 function extractPublicKeyArmored(input: string): string | null {
     const m = input.trim().match(PUBLIC_KEY_ARMOR)
+
     return m ? m[0].trim() : null
 }
 
@@ -63,6 +64,7 @@ async function messageArmorToString(armored: unknown): Promise<string> {
             readToEnd: (join: (c: unknown[]) => string) => Promise<unknown>
         }
         const out = await streamLike.readToEnd(joinArmorChunks)
+
         return typeof out === "string" ? out : String(out)
     }
 
@@ -161,6 +163,7 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
             n: displayName,
             k: id.publicKeyArmored,
         }
+
         return JSON.stringify(payload)
     }
 
@@ -198,7 +201,9 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
         out[o++] = nameUtf8.length & 0xff
         out.set(nameUtf8, o)
         o += nameUtf8.length
+
         const kl = keyBin.byteLength
+
         out[o++] = (kl >>> 24) & 0xff
         out[o++] = (kl >>> 16) & 0xff
         out[o++] = (kl >>> 8) & 0xff
@@ -235,6 +240,7 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
         }
 
         const asText = new TextDecoder("utf-8", { fatal: false }).decode(raw).trim()
+
         return this.parseVisitCardText(asText)
     }
 
@@ -255,6 +261,7 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
         }
 
         const nameLen = (bytes[o] << 8) | bytes[o + 1]
+
         o += 2
 
         if (o + nameLen + 4 > bytes.byteLength) {
@@ -262,12 +269,15 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
         }
 
         const displayName = new TextDecoder().decode(bytes.subarray(o, o + nameLen))
+
         o += nameLen
+
         const keyLen =
             (bytes[o] << 24) |
             (bytes[o + 1] << 16) |
             (bytes[o + 2] << 8) |
             bytes[o + 3]
+
         o += 4
 
         if (keyLen < 1 || o + keyLen > bytes.byteLength) {
@@ -276,6 +286,7 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
 
         const keyBytes = bytes.subarray(o, o + keyLen)
         const key = await openpgp.readKey({ binaryKey: keyBytes })
+
         return {
             displayName,
             publicKeyArmored: key.armor(),
@@ -371,6 +382,7 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
             signingKeys: privateKey,
             format: "binary",
         })
+
         return encrypted as unknown as Uint8Array
     }
 
@@ -385,6 +397,7 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
         const packetMsg = await openpgp.readMessage({
             binaryMessage: binary,
         })
+
         return {
             binary,
             armored: await messageArmorToString(packetMsg.armor()),
@@ -399,6 +412,7 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
             plaintext,
             recipientPublicKeyArmored,
         )
+
         return armored
     }
 
@@ -454,6 +468,7 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
         const packetMsg = await openpgp.readMessage({
             binaryMessage: inner,
         })
+
         return messageArmorToString(packetMsg.armor())
     }
 }
@@ -469,6 +484,7 @@ async function messagePayloadToUtf8(data: unknown): Promise<string> {
 
     if (data && typeof (data as ReadableStream<Uint8Array>).getReader === "function") {
         const buf = await new Response(data as ReadableStream).arrayBuffer()
+
         return new TextDecoder().decode(new Uint8Array(buf))
     }
 

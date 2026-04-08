@@ -33,6 +33,7 @@ export function normalizeMessage(m: MessagePlain): MessagePlain {
         m.channelPayload ?? legacy.armoredPayload ?? ""
     const outboundSelfPayload =
         m.outboundSelfPayload ?? legacy.outboundSelfArmored
+
     return {
         ...m,
         cryptoProtocol,

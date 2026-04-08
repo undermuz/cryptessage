@@ -21,6 +21,7 @@ describe("backup-format", () => {
             ivB64: "BB",
             ciphertextB64: "CC",
         }
+
         expect(parseBackupFile(serializeBackupFile(f))).toEqual(f)
     })
 
@@ -37,6 +38,7 @@ describe("backup-format", () => {
         }
         const blob = await encryptPlainPayload(key, plain)
         const back = await decryptPlainPayload(key, blob)
+
         expect(back).toEqual(plain)
     })
 })

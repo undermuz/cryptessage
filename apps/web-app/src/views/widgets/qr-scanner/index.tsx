@@ -12,7 +12,7 @@ import { NotFoundException } from "@zxing/library"
 import { Button } from "@/views/ui/button"
 import { useT } from "@/di/react/hooks/useT"
 import type { VisitCardRawPayload } from "@/di/openpgp-crypto/types"
-import { zxingCryptessagePayloadFromResult } from "@/views/widgets/qr-scanner/zxing-qr-payload"
+import { zxingCryptessagePayloadFromResult } from "@/lib/qr-zxing/zxing-qr-payload"
 
 const LOG_PREFIX = "[qr-scanner]"
 
@@ -29,6 +29,7 @@ function pushDebugLog(
     const stamp = new Date().toISOString().slice(11, 19)
     const suffix = extra !== undefined ? ` ${JSON.stringify(extra)}` : ""
     const line = `${stamp} ${message}${suffix}`
+
     console.debug(LOG_PREFIX, message, extra ?? "")
     setLines((prev) => [...prev.slice(-35), line])
 }
@@ -37,6 +38,7 @@ export function QrScannerPanel({ onResult, onClose }: Props) {
     const t = useT()
     const videoRef = useRef<HTMLVideoElement>(null)
     const onResultRef = useRef(onResult)
+
     onResultRef.current = onResult
 
     const [error, setError] = useState<string | null>(null)
@@ -100,6 +102,7 @@ export function QrScannerPanel({ onResult, onClose }: Props) {
             stop: () => void,
         ) => {
             stop()
+
             const len =
                 typeof payload === "string"
                     ? payload.length
@@ -108,6 +111,7 @@ export function QrScannerPanel({ onResult, onClose }: Props) {
                 typeof payload === "string"
                     ? payload.slice(0, 80)
                     : `[binary ${payload.byteLength} bytes]`
+
             appendLog("QR symbol decoded", {
                 length: len,
                 preview,
@@ -158,6 +162,7 @@ export function QrScannerPanel({ onResult, onClose }: Props) {
             })
             .catch((e: unknown) => {
                 const msg = e instanceof Error ? e.message : String(e)
+
                 appendLog("decodeFromVideoDevice failed", { message: msg })
                 setError(msg)
             })

@@ -80,6 +80,7 @@ export class I18nJs implements I18nService {
 
     public async saveState(state: I18nState): Promise<void> {
         const key = this.getStorageKey()
+
         return await this.localStorage.setItem(key, JSON.stringify(state))
     }
 

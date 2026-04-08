@@ -1,8 +1,7 @@
-import type { VisitCardRawPayload } from "@/di/openpgp-crypto/types"
-import type { ContactPlain } from "@/di/crypt-db/types-data"
 import { QR_MESSAGE_MAX_BYTES } from "@/di/secure/constants"
 import { useT } from "@/di/react/hooks/useT"
 import { Button } from "@/views/ui/button"
+import { useSnapshot } from "valtio/react"
 import {
     Dialog,
     DialogContent,
@@ -13,57 +12,28 @@ import {
 import { ImportQrBlock } from "@/views/widgets/qr-io/import-qr-block"
 import { ImportQrPreviewShell } from "@/views/widgets/qr-io/import-qr-preview-shell"
 
+import type { IChatThreadService } from "@/di/chat-thread/types"
+
 import { payloadByteLength } from "./utils"
-import type { ImportSource } from "./types"
 
 export function ChatReceiveEncryptedDialog({
     open,
     onOpenChange,
-    contact,
-    pasteIn,
-    onPasteInChange,
-    onDecryptArmoredPaste,
-    pasteQrBusy,
-    importScan,
-    onImportScanOpen,
-    onImportScanClose,
-    onPasteMessageQrFromClipboard,
-    onPickMessageQrFromFile,
-    importPending,
-    onImportPending,
-    importDecryptLoading,
-    importDecryptPreview,
-    importDecryptErr,
-    onConfirmSaveScannedInbound,
+    chat,
+    onSaved,
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
-    contact: ContactPlain
-    pasteIn: string
-    onPasteInChange: (v: string) => void
-    onDecryptArmoredPaste: () => void
-    pasteQrBusy: boolean
-    importScan: boolean
-    onImportScanOpen: () => void
-    onImportScanClose: () => void
-    onPasteMessageQrFromClipboard: () => void
-    onPickMessageQrFromFile: (file: File) => void
-    importPending: {
-        raw: VisitCardRawPayload
-        source: ImportSource
-    } | null
-    onImportPending: (
-        v: { raw: VisitCardRawPayload; source: ImportSource } | null,
-    ) => void
-    importDecryptLoading: boolean
-    importDecryptPreview: {
-        text: string
-        signaturesValid: boolean
-    } | null
-    importDecryptErr: string | null
-    onConfirmSaveScannedInbound: () => void
+    chat: IChatThreadService
+    onSaved: () => void
 }) {
     const t = useT()
+    const snap = useSnapshot(chat.state)
+    const contact = snap.contact
+
+    if (!contact) {
+        return null
+    }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -93,67 +63,77 @@ export function ChatReceiveEncryptedDialog({
                             armoredSubmit: t("chat.decryptBtn"),
                         }}
                         armoredPlaceholder={t("chat.pasteArmoredPlaceholder")}
-                        armoredValue={pasteIn}
-                        onArmoredChange={onPasteInChange}
-                        onArmoredSubmit={onDecryptArmoredPaste}
-                        armoredSubmitDisabled={!pasteIn.trim()}
-                        pasteBusy={pasteQrBusy}
-                        scanOpen={importScan}
-                        onOpenScan={onImportScanOpen}
-                        onCloseScan={onImportScanClose}
-                        onPasteQrFromImage={onPasteMessageQrFromClipboard}
-                        onPickQrImageFile={onPickMessageQrFromFile}
+                        armoredValue={snap.pasteIn}
+                        onArmoredChange={(v) => chat.setPasteIn(v)}
+                        onArmoredSubmit={() => void chat.decryptArmoredPaste()}
+                        armoredSubmitDisabled={!snap.pasteIn.trim()}
+                        pasteBusy={snap.pasteQrBusy}
+                        scanOpen={snap.importScan}
+                        onOpenScan={() => chat.setImportScan(true)}
+                        onCloseScan={() => chat.setImportScan(false)}
+                        onPasteQrFromImage={() =>
+                            void chat.pasteMessageQrFromClipboard()
+                        }
+                        onPickQrImageFile={(file) =>
+                            void chat.pickMessageQrFromFile(file)
+                        }
                         onScannedPayload={(payload) =>
-                            onImportPending({
+                            chat.setImportPending({
                                 raw: payload,
                                 source: "camera",
                             })
                         }
                         preview={
-                            importPending ? (
+                            snap.importPending ? (
                                 <ImportQrPreviewShell
                                     title={t("chat.reviewScannedCiphertext")}
                                     metaLine={`${
-                                        importPending.source === "camera"
+                                        snap.importPending.source === "camera"
                                             ? t("contacts.reviewSourceCamera")
-                                            : importPending.source === "file"
+                                            : snap.importPending.source === "file"
                                                 ? t("contacts.reviewSourceFile")
                                                 : t("contacts.reviewSourceClipboard")
                                     } · ${t("contacts.reviewPayloadSize", {
-                                        n: payloadByteLength(importPending.raw),
+                                        n: payloadByteLength(snap.importPending.raw),
                                     })}`}
-                                    qrPayload={importPending.raw}
+                                    qrPayload={snap.importPending.raw}
                                     maxQrBytes={QR_MESSAGE_MAX_BYTES}
                                     tooLongHint={t("contacts.reviewQrTooLong")}
                                 >
-                                    {importDecryptLoading && (
+                                    {snap.importDecryptLoading && (
                                         <p className="text-muted-foreground">
                                             {t("common.loading")}
                                         </p>
                                     )}
-                                    {importDecryptErr && (
+                                    {snap.importDecryptErr && (
                                         <p className="text-sm text-destructive">
-                                            {importDecryptErr}
+                                            {snap.importDecryptErr}
                                         </p>
                                     )}
-                                    {importDecryptPreview && (
+                                    {snap.importDecryptPreview && (
                                         <>
                                             <p className="text-sm font-medium">
                                                 {t("chat.decrypted")}
                                             </p>
                                             <p className="rounded-md bg-muted p-2 text-sm">
-                                                {importDecryptPreview.text}
+                                                {snap.importDecryptPreview.text}
                                             </p>
                                             <p className="text-xs text-muted-foreground">
-                                                {importDecryptPreview.signaturesValid
+                                                {snap.importDecryptPreview.signaturesValid
                                                     ? t("chat.signatureOk")
                                                     : t("chat.signatureBad")}
                                             </p>
                                             <div className="flex flex-wrap gap-2 pt-1">
                                                 <Button
                                                     type="button"
-                                                    onClick={
-                                                        onConfirmSaveScannedInbound
+                                                    onClick={() =>
+                                                        void chat
+                                                            .confirmSaveScannedInbound()
+                                                            .then((ok) => {
+                                                                if (ok) {
+                                                                    onSaved()
+                                                                }
+                                                            })
                                                     }
                                                 >
                                                     {t("chat.saveInbound")}
@@ -162,7 +142,7 @@ export function ChatReceiveEncryptedDialog({
                                                     type="button"
                                                     variant="outline"
                                                     onClick={() =>
-                                                        onImportPending(null)
+                                                        chat.setImportPending(null)
                                                     }
                                                 >
                                                     {t("contacts.discardReview")}
@@ -170,15 +150,15 @@ export function ChatReceiveEncryptedDialog({
                                             </div>
                                         </>
                                     )}
-                                    {!importDecryptLoading &&
-                                        importDecryptErr &&
-                                        !importDecryptPreview && (
+                                    {!snap.importDecryptLoading &&
+                                        snap.importDecryptErr &&
+                                        !snap.importDecryptPreview && (
                                         <div className="pt-2">
                                             <Button
                                                 type="button"
                                                 variant="outline"
                                                 onClick={() =>
-                                                    onImportPending(null)
+                                                    chat.setImportPending(null)
                                                 }
                                             >
                                                 {t("contacts.discardReview")}
