@@ -12,6 +12,10 @@ import {
     type EncryptedOutgoingBundle,
     type IMessagingCryptoService,
 } from "@/di/messaging-crypto/types"
+import {
+    PromiseManagerProvider,
+    type PromiseManager,
+} from "@/di/utils/promise-manager/types"
 import type { MessagePlain } from "@/di/crypt-db/types-data"
 import {
     decodeQrFromClipboardImage,
@@ -27,6 +31,15 @@ import type {
 import { isCiphertextForRecipientNotSelf } from "./utils"
 import { invariant } from "@/lib/utils"
 
+type ChatThreadPromiseEvents = {
+    "chatThread:loadContact": void
+    "chatThread:decryptImport": void
+    "chatThread:onSendNewMessage": EncryptedOutgoingBundle
+    "chatThread:applyImport": boolean
+    "chatThread:importByQrClipboard": void
+    "chatThread:importByQrFile": void
+}
+
 @injectable()
 export class ChatThreadProvider implements IChatThreadService {
     public readonly state: ChatThreadState
@@ -40,8 +53,11 @@ export class ChatThreadProvider implements IChatThreadService {
     @inject(I18nProvider)
     private readonly i18n!: I18nService
 
-    private loadGen = 0
-    private importDecryptGen = 0
+    @inject(PromiseManagerProvider)
+    private readonly pm!: PromiseManager<
+        ChatThreadPromiseEvents,
+        keyof ChatThreadPromiseEvents
+    >
 
     constructor(contactId: string | null = null) {
         this.state = proxy(
@@ -71,66 +87,16 @@ export class ChatThreadProvider implements IChatThreadService {
         }
     }
 
-    private async loadContact(contactId: string): Promise<void> {
-        const gen = ++this.loadGen
-
-        invariant(Boolean(contactId), "Invalid contact ID")
-
-        try {
-            const c = await this.conv.getContact(contactId)
-
-            if (gen !== this.loadGen) {
-                return
-            }
-
-            this.state.contact = c
-
-            this.state.isPendingList = true
-
-            const all = await this.conv.listMessages(contactId)
-
-            if (gen !== this.loadGen) {
-                return
-            }
-
-            await this.setMessages(all)
-        } finally {
-            if (gen === this.loadGen) {
-                this.state.pendingScrollToBottom = true
-                this.state.isPendingList = false
-            }
-        }
+    private setMessages(all: MessagePlain[]): void {
+        this.state.fullMessages = all
+        this.state.listItems = all.slice(-VIEW_COUNT)
     }
 
-    public async setActiveContactId(contactId: string | null): Promise<void> {
+    private resetState(contactId: string | null): void {
         Object.assign(
             this.state,
             ChatThreadProvider.createInitialChatThreadState(contactId),
         )
-
-        if (!contactId) {
-            return
-        }
-
-        await this.loadContact(contactId)
-    }
-
-    public async setImportData(
-        data: ChatThreadImportState["data"],
-    ): Promise<void> {
-        const imp = this.state.import
-
-        imp.data = data
-
-        if (!data || !this.state.contact) {
-            imp.decryptLoading = false
-            imp.decryptPreview = null
-            imp.decryptErr = null
-
-            return
-        }
-
-        await this.decryptImport()
     }
 
     public setListItems(items: MessagePlain[]): void {
@@ -154,26 +120,54 @@ export class ChatThreadProvider implements IChatThreadService {
         this.state.pendingScrollToBottom = true
     }
 
-    public async loadMore(
-        direction: "up" | "down",
-        refItem: MessagePlain,
-    ): Promise<MessagePlain[]> {
-        const full = this.state.fullMessages
-        const idx = full.findIndex((m) => m.id === refItem.id)
+    private async _loadContact(
+        contactId: string,
+        signal: AbortSignal,
+    ): Promise<void> {
+        invariant(Boolean(contactId), "Invalid contact ID")
 
-        if (idx === -1) {
-            return []
+        try {
+            if (signal.aborted) return
+
+            const c = await this.conv.getContact(contactId)
+
+            if (signal.aborted) return
+
+            this.state.contact = c
+            this.state.isPendingList = true
+
+            const all = await this.conv.listMessages(contactId)
+
+            if (signal.aborted) return
+
+            this.setMessages(all)
+
+            await this.decryptMessages(signal)
+        } finally {
+            if (!signal.aborted) {
+                this.state.pendingScrollToBottom = true
+                this.state.isPendingList = false
+            }
+        }
+    }
+
+    private async loadContact(contactId: string): Promise<void> {
+        const { promise } = this.pm.takeLatest(
+            "chatThread:loadContact",
+            (signal) => this._loadContact(contactId, signal),
+        )
+
+        return promise
+    }
+
+    public async setActiveContactId(contactId: string | null): Promise<void> {
+        this.resetState(contactId)
+
+        if (!contactId) {
+            return
         }
 
-        if (direction === "up") {
-            const start = Math.max(0, idx - PAGE_SIZE)
-
-            return full.slice(start, idx)
-        }
-
-        const end = Math.min(full.length, idx + PAGE_SIZE + 1)
-
-        return full.slice(idx + 1, end)
+        return this.loadContact(contactId)
     }
 
     public async reload(): Promise<void> {
@@ -186,30 +180,76 @@ export class ChatThreadProvider implements IChatThreadService {
         await this.loadContact(contactId)
     }
 
+    public async setImportData(
+        data: ChatThreadImportState["data"],
+    ): Promise<void> {
+        const imp = this.state.import
+
+        imp.data = data
+
+        if (!data || !this.state.contact) {
+            imp.decryptLoading = false
+            imp.decryptPreview = null
+            imp.data = null
+
+            const error = "Invalid import data"
+
+            imp.decryptErr = error
+
+            throw new Error(error)
+        }
+
+        const { promise } = this.pm.takeLatest(
+            "chatThread:decryptImport",
+            (signal) => this.decryptImport(signal),
+        )
+
+        return promise
+    }
+
     public async onSendNewMessage(
         messageText: string,
     ): Promise<EncryptedOutgoingBundle> {
-        invariant(messageText.trim().length > 0, "Invalid plain text")
+        const { promise } = this.pm.createExclusive(
+            "chatThread:onSendNewMessage",
+            async (signal) => {
+                invariant(messageText.trim().length > 0, "Invalid plain text")
 
-        const contactId = this.state.contactId
-        const contact = this.state.contact
+                const contactId = this.state.contactId
+                const contact = this.state.contact
 
-        invariant(contactId !== null, "Invalid contact ID")
-        invariant(contact !== null, "Invalid contact")
+                invariant(contactId !== null, "Invalid contact ID")
+                invariant(contact !== null, "Invalid contact")
 
-        this.state.toast = null
+                this.state.toast = null
+
+                if (signal.aborted) {
+                    throw new DOMException("AbortError")
+                }
+
+                const bundle = await this.conv.encryptOutgoingBundle(
+                    contactId,
+                    messageText,
+                )
+
+                if (signal.aborted) {
+                    throw new DOMException("AbortError")
+                }
+
+                await this.conv.saveOutboundBundle(contactId, bundle)
+                await this.reload()
+
+                return bundle
+            },
+        )
 
         try {
-            const bundle = await this.conv.encryptOutgoingBundle(
-                contactId,
-                messageText,
-            )
-
-            await this.conv.saveOutboundBundle(contactId, bundle)
-            await this.reload()
-
-            return bundle
+            return await promise
         } catch (e) {
+            if (e instanceof DOMException && e.name === "AbortError") {
+                throw e
+            }
+
             const raw = e instanceof Error ? e.message : String(e)
 
             this.state.toast = raw
@@ -219,36 +259,55 @@ export class ChatThreadProvider implements IChatThreadService {
     }
 
     public async applyImport(): Promise<boolean> {
-        const imp = this.state.import
-        const data = imp.data
-        const contact = this.state.contact
+        const { promise } = this.pm.createExclusive(
+            "chatThread:applyImport",
+            async (signal) => {
+                const imp = this.state.import
+                const data = imp.data
+                const contact = this.state.contact
 
-        invariant(data !== null, "Invalid import data")
-        invariant(contact !== null, "Invalid contact")
+                invariant(data !== null, "Invalid import data")
+                invariant(contact !== null, "Invalid contact")
 
-        this.state.toast = null
+                this.state.toast = null
+
+                if (signal.aborted) {
+                    throw new DOMException("AbortError")
+                }
+
+                const normalized = await this.messaging.normalizeInboundPayload(
+                    data.raw,
+                )
+
+                if (signal.aborted) {
+                    throw new DOMException("AbortError")
+                }
+
+                await this.conv.saveInboundPayload(
+                    contact.id,
+                    normalized.channelStorage,
+                    normalized.cryptoProtocol,
+                )
+
+                imp.data = null
+                imp.decryptPreview = null
+                imp.decryptErr = null
+
+                await this.reload()
+
+                this.state.toast = this.i18n.t("chat.saveInboundOk")
+
+                return true
+            },
+        )
 
         try {
-            const normalized = await this.messaging.normalizeInboundPayload(
-                data.raw,
-            )
-
-            await this.conv.saveInboundPayload(
-                contact.id,
-                normalized.channelStorage,
-                normalized.cryptoProtocol,
-            )
-
-            imp.data = null
-            imp.decryptPreview = null
-            imp.decryptErr = null
-
-            await this.reload()
-
-            this.state.toast = this.i18n.t("chat.saveInboundOk")
-
-            return true
+            return await promise
         } catch (e) {
+            if (e instanceof DOMException && e.name === "AbortError") {
+                return false
+            }
+
             const reason = e instanceof Error ? e.message : String(e)
 
             this.state.toast = this.i18n.t("chat.saveInboundFail", { reason })
@@ -282,19 +341,34 @@ export class ChatThreadProvider implements IChatThreadService {
     }
 
     public async importByQrClipboard(): Promise<void> {
-        this.state.toast = null
+        const { promise } = this.pm.takeLatest(
+            "chatThread:importByQrClipboard",
+            async (signal) => {
+                this.state.toast = null
+
+                const reader = new BrowserQRCodeReader()
+                const payload = await decodeQrFromClipboardImage(reader)
+
+                if (signal.aborted) {
+                    return
+                }
+
+                if (!payload) {
+                    this.state.toast = this.i18n.t("contacts.pasteQrNoCode")
+                    return
+                }
+
+                await this.setImportData({ raw: payload, source: "clipboard" })
+            },
+        )
 
         try {
-            const reader = new BrowserQRCodeReader()
-            const payload = await decodeQrFromClipboardImage(reader)
-
-            if (!payload) {
-                this.state.toast = this.i18n.t("contacts.pasteQrNoCode")
+            await promise
+        } catch (e) {
+            if (e instanceof DOMException && e.name === "AbortError") {
                 return
             }
 
-            await this.setImportData({ raw: payload, source: "clipboard" })
-        } catch (e) {
             const reason = e instanceof Error ? e.message : String(e)
 
             this.state.toast = this.i18n.t("contacts.pasteQrFailed", { reason })
@@ -302,34 +376,41 @@ export class ChatThreadProvider implements IChatThreadService {
     }
 
     public async importByQrFile(file: File): Promise<void> {
-        this.state.toast = null
+        const { promise } = this.pm.takeLatest(
+            "chatThread:importByQrFile",
+            async (signal) => {
+                this.state.toast = null
+
+                const reader = new BrowserQRCodeReader()
+                const payload = await decodeQrFromImageBlob(reader, file)
+
+                if (signal.aborted) {
+                    return
+                }
+
+                if (!payload) {
+                    this.state.toast = this.i18n.t("contacts.pasteQrNoCode")
+                    return
+                }
+
+                await this.setImportData({ raw: payload, source: "file" })
+            },
+        )
 
         try {
-            const reader = new BrowserQRCodeReader()
-            const payload = await decodeQrFromImageBlob(reader, file)
-
-            if (!payload) {
-                this.state.toast = this.i18n.t("contacts.pasteQrNoCode")
+            await promise
+        } catch (e) {
+            if (e instanceof DOMException && e.name === "AbortError") {
                 return
             }
 
-            await this.setImportData({ raw: payload, source: "file" })
-        } catch (e) {
             const reason = e instanceof Error ? e.message : String(e)
 
             this.state.toast = this.i18n.t("contacts.pasteQrFailed", { reason })
         }
     }
 
-    private async setMessages(all: MessagePlain[]): Promise<void> {
-        this.state.fullMessages = all
-        this.state.listItems = all.slice(-VIEW_COUNT)
-
-        await this.decryptMessages()
-    }
-
-    private async decryptImport(): Promise<void> {
-        const gen = ++this.importDecryptGen
+    private async decryptImport(signal: AbortSignal): Promise<void> {
         const imp = this.state.import
         const data = imp.data
         const contact = this.state.contact
@@ -342,20 +423,24 @@ export class ChatThreadProvider implements IChatThreadService {
         imp.decryptErr = null
 
         try {
+            if (signal.aborted) {
+                return
+            }
+
             const r = await this.messaging.decryptIncoming(
                 contact,
                 data.raw,
                 contact.cryptoProtocol,
             )
 
-            if (gen !== this.importDecryptGen) {
+            if (signal.aborted) {
                 return
             }
 
             imp.decryptPreview = r
             imp.decryptErr = null
         } catch (e) {
-            if (gen !== this.importDecryptGen) {
+            if (signal.aborted) {
                 return
             }
 
@@ -367,19 +452,23 @@ export class ChatThreadProvider implements IChatThreadService {
                 ? this.i18n.t("chat.errCannotDecryptOwnOutgoing")
                 : raw
         } finally {
-            if (gen === this.importDecryptGen) {
+            if (!signal.aborted) {
                 imp.decryptLoading = false
             }
         }
     }
 
-    private async decryptMessages(): Promise<void> {
+    private async decryptMessages(signal: AbortSignal): Promise<void> {
         const contact = this.state.contact
         const messages = this.state.fullMessages
 
         if (!contact) {
             this.state.inboundPreview = {}
 
+            return
+        }
+
+        if (signal.aborted) {
             return
         }
 
@@ -390,6 +479,10 @@ export class ChatThreadProvider implements IChatThreadService {
         } else {
             const inboundEntries = await Promise.all(
                 inbound.map(async (m) => {
+                    if (signal.aborted) {
+                        return [m.id, { ok: false, err: "aborted" }] as const
+                    }
+
                     try {
                         const r = await this.messaging.decryptIncoming(
                             contact,
@@ -413,6 +506,10 @@ export class ChatThreadProvider implements IChatThreadService {
                 }),
             )
 
+            if (signal.aborted) {
+                return
+            }
+
             this.state.inboundPreview = Object.fromEntries(inboundEntries)
         }
 
@@ -426,8 +523,16 @@ export class ChatThreadProvider implements IChatThreadService {
             return
         }
 
+        if (signal.aborted) {
+            return
+        }
+
         const outboundEntries = await Promise.all(
             outbound.map(async (m) => {
+                if (signal.aborted) {
+                    return [m.id, { ok: false, err: "aborted" }] as const
+                }
+
                 const selfPl = m.outboundSelfPayload
 
                 if (!selfPl) {
@@ -459,6 +564,32 @@ export class ChatThreadProvider implements IChatThreadService {
             }),
         )
 
+        if (signal.aborted) {
+            return
+        }
+
         this.state.outboundPreview = Object.fromEntries(outboundEntries)
+    }
+
+    public async loadMore(
+        direction: "up" | "down",
+        refItem: MessagePlain,
+    ): Promise<MessagePlain[]> {
+        const full = this.state.fullMessages
+        const idx = full.findIndex((m) => m.id === refItem.id)
+
+        if (idx === -1) {
+            return []
+        }
+
+        if (direction === "up") {
+            const start = Math.max(0, idx - PAGE_SIZE)
+
+            return full.slice(start, idx)
+        }
+
+        const end = Math.min(full.length, idx + PAGE_SIZE + 1)
+
+        return full.slice(idx + 1, end)
     }
 }
