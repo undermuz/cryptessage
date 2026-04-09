@@ -4,7 +4,7 @@
         "outDir": "dist",
         "tsBuildInfoFile": "dist/tsconfig.app.tsbuildinfo",
         "jsx": "react-jsx",
-        "lib": ["dom", "es2022"],
+        "lib": ["dom", "es2024"],
         "types": [
             "node",
             "@nx/react/typings/cssmodule.d.ts",

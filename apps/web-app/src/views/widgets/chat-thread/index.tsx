@@ -24,6 +24,8 @@ export function ChatThreadWidget() {
 
     const listRef = useRef<BidirectionalListRef<MessagePlain>>(null)
 
+    const [threadScreenReady, setThreadScreenReady] = useState(false)
+
     const [sendModalOpen, setSendModalOpen] = useState(false)
     const [receiveModalOpen, setReceiveModalOpen] = useState(false)
     const [newMessageText, setNewMessageText] = useState("")
@@ -44,6 +46,7 @@ export function ChatThreadWidget() {
     })
 
     const sendNewMessageMutate = sendNewMessage.mutate
+    const setActiveContactIdMutate = setActiveContactId.mutate
 
     const openSendModal = useCallback(() => {
         const sendMessageText = newMessageText.trim()
@@ -62,8 +65,18 @@ export function ChatThreadWidget() {
     }, [chat, newMessageText, sendNewMessageMutate])
 
     useEffect(() => {
-        setActiveContactId.mutate(contactId ?? null)
-    }, [contactId, setActiveContactId])
+        if (!contactId) {
+            return
+        }
+
+        setThreadScreenReady(false)
+
+        setActiveContactIdMutate(contactId, {
+            onSettled: () => {
+                setThreadScreenReady(true)
+            },
+        })
+    }, [contactId, setActiveContactIdMutate])
 
     useEffect(() => {
         setNewMessageText("")
@@ -85,7 +98,7 @@ export function ChatThreadWidget() {
         return null
     }
 
-    if (!snap.screenReady) {
+    if (!threadScreenReady) {
         return (
             <p className="text-sm text-muted-foreground">
                 {t("common.loading")}
@@ -116,7 +129,11 @@ export function ChatThreadWidget() {
                 }}
             />
 
-            <ChatThreadMessageList ref={listRef} chat={chat} />
+            <ChatThreadMessageList
+                ref={listRef}
+                chat={chat}
+                listDisabled={snap.isPendingList}
+            />
 
             {snap.toast && (
                 <p className="shrink-0 border-b border-border bg-muted/40 px-3 py-2 text-center text-xs text-muted-foreground">

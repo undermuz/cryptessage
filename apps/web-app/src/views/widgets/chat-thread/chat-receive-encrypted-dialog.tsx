@@ -14,7 +14,10 @@ import {
 import { ImportQrBlock } from "@/views/widgets/qr-io/import-qr-block"
 import { ImportQrPreviewShell } from "@/views/widgets/qr-io/import-qr-preview-shell"
 
-import type { ChatThreadImportState, IChatThreadService } from "@/di/chat-thread/types"
+import type {
+    ChatThreadImportState,
+    IChatThreadService,
+} from "@/di/chat-thread/types"
 
 import { payloadByteLength } from "./utils"
 
@@ -114,7 +117,7 @@ function ChatImportQrBlock({
     onPasteArmoredChange,
     t,
     isProcessing,
-    onDecryptArmoredSubmit,
+    onSend,
     onPasteFromClipboard,
     onPickFromFile,
     children,
@@ -124,7 +127,7 @@ function ChatImportQrBlock({
     onPasteArmoredChange: (value: string) => void
     t: ReturnType<typeof useT>
     isProcessing: boolean
-    onDecryptArmoredSubmit: () => void
+    onSend: () => void
     onPasteFromClipboard: () => void
     onPickFromFile: (file: File) => void
     children?: ReactNode
@@ -144,7 +147,7 @@ function ChatImportQrBlock({
             armored={{
                 value: pasteArmored,
                 onChange: onPasteArmoredChange,
-                onSubmit: onDecryptArmoredSubmit,
+                onSubmit: onSend,
             }}
             isProcessing={isProcessing}
             onPasteQrFromImage={onPasteFromClipboard}
@@ -176,25 +179,25 @@ export function ChatReceiveEncryptedDialog({
     const snap = useSnapshot(chat.state)
     const contact = snap.contact
 
-    const [pasteArmored, setPasteArmored] = useState("")
+    const [text, setText] = useState("")
 
-    const decryptArmoredPasteMutation = useMutation({
-        mutationFn: () => chat.decryptArmoredPaste(pasteArmored),
+    const onSend = useMutation({
+        mutationFn: () => chat.importByRaw(text),
         onSuccess: () => {
-            setPasteArmored("")
+            setText("")
         },
     })
 
-    const pasteMessageQrFromClipboardMutation = useMutation({
-        mutationFn: () => chat.pasteMessageQrFromClipboard(),
+    const importByQrClipboard = useMutation({
+        mutationFn: () => chat.importByQrClipboard(),
     })
 
-    const pickMessageQrFromFileMutation = useMutation({
-        mutationFn: (file: File) => chat.pickMessageQrFromFile(file),
+    const importByQrFile = useMutation({
+        mutationFn: (file: File) => chat.importByQrFile(file),
     })
 
     const confirmSaveScannedInboundMutation = useMutation({
-        mutationFn: () => chat.confirmSaveScannedInbound(),
+        mutationFn: () => chat.applyImport(),
         onSuccess: (ok) => {
             if (ok) {
                 onSaved()
@@ -203,9 +206,9 @@ export function ChatReceiveEncryptedDialog({
     })
 
     const isProcessing =
-        decryptArmoredPasteMutation.isPending ||
-        pasteMessageQrFromClipboardMutation.isPending ||
-        pickMessageQrFromFileMutation.isPending ||
+        onSend.isPending ||
+        importByQrClipboard.isPending ||
+        importByQrFile.isPending ||
         confirmSaveScannedInboundMutation.isPending
 
     if (!contact) {
@@ -219,7 +222,7 @@ export function ChatReceiveEncryptedDialog({
                 onOpenChange(nextOpen)
 
                 if (!nextOpen) {
-                    setPasteArmored("")
+                    setText("")
                 }
             }}
         >
@@ -241,19 +244,15 @@ export function ChatReceiveEncryptedDialog({
                 <div className="max-h-[min(75dvh,40rem)] min-h-0 overflow-y-auto p-4">
                     <ChatImportQrBlock
                         chat={chat}
-                        pasteArmored={pasteArmored}
-                        onPasteArmoredChange={setPasteArmored}
+                        pasteArmored={text}
+                        onPasteArmoredChange={setText}
                         t={t}
                         isProcessing={isProcessing}
-                        onDecryptArmoredSubmit={() =>
-                            decryptArmoredPasteMutation.mutate()
-                        }
+                        onSend={() => onSend.mutate()}
                         onPasteFromClipboard={() =>
-                            pasteMessageQrFromClipboardMutation.mutate()
+                            importByQrClipboard.mutate()
                         }
-                        onPickFromFile={(file) =>
-                            pickMessageQrFromFileMutation.mutate(file)
-                        }
+                        onPickFromFile={(file) => importByQrFile.mutate(file)}
                     >
                         {snap.import.data !== null && (
                             <ChatImportQrPreview

@@ -24,22 +24,14 @@ export function normalizeContact(c: ContactPlain): ContactPlain {
 export function normalizeMessage(m: MessagePlain): MessagePlain {
     const cryptoProtocol: CryptoProtocolId =
         m.cryptoProtocol ?? DEFAULT_CRYPTO_PROTOCOL
-    const legacy = m as MessagePlain & {
-        armoredPayload?: string
-        outboundSelfArmored?: string
-        cryptoProtocol?: CryptoProtocolId
-    }
-    const channelPayload =
-        m.channelPayload ?? legacy.armoredPayload ?? ""
-    const outboundSelfPayload =
-        m.outboundSelfPayload ?? legacy.outboundSelfArmored
+
+    const channelPayload = m.channelPayload ?? ""
+    const outboundSelfPayload = m.outboundSelfPayload
 
     return {
         ...m,
         cryptoProtocol,
         channelPayload,
-        ...(outboundSelfPayload !== undefined
-            ? { outboundSelfPayload }
-            : {}),
+        ...(outboundSelfPayload !== undefined ? { outboundSelfPayload } : {}),
     }
 }

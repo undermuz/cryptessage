@@ -12,12 +12,13 @@ import type { IChatThreadService } from "@/di/chat-thread/types"
 
 type ChatThreadMessageListProps = {
     chat: IChatThreadService
+    listDisabled: boolean
 }
 
 export const ChatThreadMessageList = forwardRef<
     BidirectionalListRef<MessagePlain>,
     ChatThreadMessageListProps
->(function ChatThreadMessageList({ chat }, ref) {
+>(function ChatThreadMessageList({ chat, listDisabled }, ref) {
     const t = useT()
     const snap = useSnapshot(chat.state)
 
@@ -48,7 +49,7 @@ export const ChatThreadMessageList = forwardRef<
                 threshold={LIST_THRESHOLD}
                 onLoadMore={chat.loadMore}
                 onItemsChange={(items) => chat.setListItems(items)}
-                disable={snap.listDisable}
+                disable={listDisabled}
                 spinnerRow={
                     <div className="flex justify-center py-3">
                         <div className="size-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />

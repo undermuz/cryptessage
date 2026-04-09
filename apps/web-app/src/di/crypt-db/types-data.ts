@@ -31,9 +31,6 @@ export type MessagePlain = {
      * same encoding rules as `channelPayload`.
      */
     outboundSelfPayload?: string
-    /** Legacy OpenPGP field — migrated to `channelPayload` via normalize. */
-    armoredPayload?: string
-    outboundSelfArmored?: string
 }
 
 export type CompactIdentitySecrets = {

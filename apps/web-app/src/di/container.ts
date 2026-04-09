@@ -22,6 +22,7 @@ import { VaultBackupModule } from "./vault-backup/module"
 import { ConversationModule } from "./conversation/module"
 import { ChatThreadModule } from "./chat-thread/module"
 import { AppModule } from "./app/app.module"
+import { PromiseManagerModule } from "./utils/promise-manager/module";
 
 export const createDiContainer = () => {
     const di: Container = new Container()

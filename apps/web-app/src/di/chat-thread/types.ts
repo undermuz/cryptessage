@@ -4,7 +4,7 @@ import type { VisitCardRawPayload } from "@/di/openpgp-crypto/types"
 
 export const ChatThreadService = Symbol.for("ChatThreadService")
 
-export type ImportSource = "camera" | "clipboard" | "file"
+export type ImportSource = "camera" | "clipboard" | "file" | "manual"
 
 export type DecryptPreviewState =
     | { ok: true; text: string; sig: boolean }
@@ -26,6 +26,7 @@ export type ChatThreadImportState = {
 export type ChatThreadState = {
     contactId: string | null
     contact: ContactPlain | null
+    isPendingList: boolean
     fullMessages: MessagePlain[]
     listItems: MessagePlain[]
     toast: string | null
@@ -52,9 +53,9 @@ export type IChatThreadService = {
     loadMore: ChatLoadMoreHandler
     jumpListToBottom(): void
     onSendNewMessage(plain: string): Promise<EncryptedOutgoingBundle>
-    decryptArmoredPaste(armoredText: string): Promise<void>
+    importByRaw(armoredText: string): Promise<void>
     /** Resolves `true` when the message was saved */
-    confirmSaveScannedInbound(): Promise<boolean>
-    pasteMessageQrFromClipboard(): Promise<void>
-    pickMessageQrFromFile(file: File): Promise<void>
+    applyImport(): Promise<boolean>
+    importByQrClipboard(): Promise<void>
+    importByQrFile(file: File): Promise<void>
 }

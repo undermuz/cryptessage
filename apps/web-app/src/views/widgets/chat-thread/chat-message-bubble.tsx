@@ -9,7 +9,7 @@ function renderBody(
     inboundPreview: IChatThreadService["state"]["inboundPreview"],
     outboundPreview: IChatThreadService["state"]["outboundPreview"],
 ) {
-    const selfPayload = m.outboundSelfPayload ?? m.outboundSelfArmored
+    const selfPayload = m.outboundSelfPayload
 
     if (m.direction === "out") {
         if (!selfPayload) {
