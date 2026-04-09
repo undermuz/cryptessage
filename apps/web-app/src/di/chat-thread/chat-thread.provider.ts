@@ -9,10 +9,10 @@ import {
 import { I18nProvider, type I18nService } from "@/di/i18n/types"
 import {
     MessagingCryptoService,
+    type EncryptedOutgoingBundle,
     type IMessagingCryptoService,
 } from "@/di/messaging-crypto/types"
 import type { MessagePlain } from "@/di/crypt-db/types-data"
-import { QR_MESSAGE_MAX_BYTES } from "@/di/secure/constants"
 import {
     decodeQrFromClipboardImage,
     decodeQrFromImageBlob,
@@ -27,36 +27,9 @@ import type {
 import { isCiphertextForRecipientNotSelf } from "./utils"
 import { invariant } from "@/lib/utils"
 
-function createInitialChatThreadState(): ChatThreadState {
-    return {
-        contactId: null,
-        screenReady: false,
-        contact: null,
-        fullMessages: [],
-        listItems: [],
-        composerPlain: "",
-        armoredOut: "",
-        messageQrPayload: null,
-        pasteIn: "",
-        warnLen: false,
-        toast: null,
-        exportQrExpanded: false,
-        import: {
-            data: null,
-            decryptLoading: false,
-            decryptPreview: null,
-            decryptErr: null,
-        },
-        listDisable: true,
-        inboundPreview: {},
-        outboundPreview: {},
-        pendingScrollToBottom: false,
-    }
-}
-
 @injectable()
 export class ChatThreadProvider implements IChatThreadService {
-    public readonly state = proxy(createInitialChatThreadState())
+    public readonly state: ChatThreadState
 
     @inject(ConversationService)
     private readonly conv!: IConversationService
@@ -70,15 +43,47 @@ export class ChatThreadProvider implements IChatThreadService {
     private loadGen = 0
     private importDecryptGen = 0
 
+    constructor(contactId: string | null = null) {
+        this.state = proxy(
+            ChatThreadProvider.createInitialChatThreadState(contactId),
+        )
+    }
+
+    static createInitialChatThreadState(
+        contactId: string | null = null,
+    ): ChatThreadState {
+        return {
+            contactId,
+            screenReady: false,
+            contact: null,
+            fullMessages: [],
+            listItems: [],
+            toast: null,
+            import: {
+                data: null,
+                decryptLoading: false,
+                decryptPreview: null,
+                decryptErr: null,
+            },
+            listDisable: true,
+            inboundPreview: {},
+            outboundPreview: {},
+            pendingScrollToBottom: false,
+        }
+    }
+
     public async setActiveContactId(contactId: string | null): Promise<void> {
         const gen = ++this.loadGen
 
-        Object.assign(this.state, createInitialChatThreadState())
-        this.state.contactId = contactId
+        Object.assign(
+            this.state,
+            ChatThreadProvider.createInitialChatThreadState(contactId),
+        )
 
         if (!contactId) {
             this.state.screenReady = true
             this.state.listDisable = false
+
             return
         }
 
@@ -110,19 +115,9 @@ export class ChatThreadProvider implements IChatThreadService {
         }
     }
 
-    public setComposerPlain(value: string): void {
-        this.state.composerPlain = value
-    }
-
-    public setPasteIn(value: string): void {
-        this.state.pasteIn = value
-    }
-
-    public setExportQrExpanded(value: boolean): void {
-        this.state.exportQrExpanded = value
-    }
-
-    public setImportData(data: ChatThreadImportState["data"]): void {
+    public async setImportData(
+        data: ChatThreadImportState["data"],
+    ): Promise<void> {
         const imp = this.state.import
 
         imp.data = data
@@ -131,10 +126,11 @@ export class ChatThreadProvider implements IChatThreadService {
             imp.decryptLoading = false
             imp.decryptPreview = null
             imp.decryptErr = null
+
             return
         }
 
-        void this.runImportDecryptPreview()
+        await this.runImportDecryptPreview()
     }
 
     public setListItems(items: MessagePlain[]): void {
@@ -212,39 +208,29 @@ export class ChatThreadProvider implements IChatThreadService {
         this.state.pendingScrollToBottom = true
     }
 
-    public async encryptOnSendDialogOpened(): Promise<void> {
+    public async onSendNewMessage(
+        messageText: string,
+    ): Promise<EncryptedOutgoingBundle> {
+        invariant(messageText.trim().length > 0, "Invalid plain text")
+
         const contactId = this.state.contactId
         const contact = this.state.contact
-        const plain = this.state.composerPlain
 
         invariant(contactId !== null, "Invalid contact ID")
         invariant(contact !== null, "Invalid contact")
-        invariant(plain.trim().length > 0, "Invalid plain text")
 
-        this.state.armoredOut = ""
-        this.state.messageQrPayload = null
-        this.state.warnLen = false
         this.state.toast = null
 
         try {
             const bundle = await this.conv.encryptOutgoingBundle(
                 contactId,
-                plain,
+                messageText,
             )
-
-            this.state.armoredOut = bundle.channelStorage
-            this.state.messageQrPayload = bundle.qrPayloadBinary
 
             await this.conv.saveOutboundBundle(contactId, bundle)
             await this.reload()
 
-            this.state.composerPlain = ""
-
-            if (bundle.qrPayloadBinary.byteLength > QR_MESSAGE_MAX_BYTES) {
-                this.state.warnLen = true
-            }
-
-            this.state.exportQrExpanded = true
+            return bundle
         } catch (e) {
             const raw = e instanceof Error ? e.message : String(e)
 
@@ -254,14 +240,14 @@ export class ChatThreadProvider implements IChatThreadService {
         }
     }
 
-    public async decryptArmoredPaste(): Promise<void> {
+    public async decryptArmoredPaste(armoredText: string): Promise<void> {
         const contact = this.state.contact
 
         if (!contact) {
             return
         }
 
-        const rawPaste = this.state.pasteIn.trim()
+        const rawPaste = armoredText.trim()
 
         this.state.toast = null
 
@@ -277,7 +263,6 @@ export class ChatThreadProvider implements IChatThreadService {
                 contact.cryptoProtocol,
             )
             await this.reload()
-            this.state.pasteIn = ""
             this.state.toast = this.i18n.t("chat.saveInboundOk")
         } catch (e) {
             const raw = e instanceof Error ? e.message : String(e)

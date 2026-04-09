@@ -1,4 +1,5 @@
 import type { ContactPlain, MessagePlain } from "@/di/crypt-db/types-data"
+import type { EncryptedOutgoingBundle } from "@/di/messaging-crypto/types"
 import type { VisitCardRawPayload } from "@/di/openpgp-crypto/types"
 
 export const ChatThreadService = Symbol.for("ChatThreadService")
@@ -24,19 +25,10 @@ export type ChatThreadImportState = {
 
 export type ChatThreadState = {
     contactId: string | null
-    /** False until first `setActiveContactId` load finishes for current id */
-    screenReady: boolean
     contact: ContactPlain | null
     fullMessages: MessagePlain[]
     listItems: MessagePlain[]
-    composerPlain: string
-    armoredOut: string
-    messageQrPayload: Uint8Array | null
-    pasteIn: string
-    warnLen: boolean
     toast: string | null
-    exportQrExpanded: boolean
-    listDisable: boolean
     inboundPreview: Record<string, DecryptPreviewState>
     outboundPreview: Record<string, DecryptPreviewState>
     pendingScrollToBottom: boolean
@@ -51,9 +43,6 @@ export type ChatLoadMoreHandler = (
 export type IChatThreadService = {
     readonly state: ChatThreadState
     setActiveContactId(contactId: string | null): Promise<void>
-    setComposerPlain(value: string): void
-    setPasteIn(value: string): void
-    setExportQrExpanded(value: boolean): void
     setImportData(data: ChatThreadImportState["data"]): void
     setListItems(items: MessagePlain[]): void
     clearToast(): void
@@ -62,8 +51,8 @@ export type IChatThreadService = {
     reload(): Promise<void>
     loadMore: ChatLoadMoreHandler
     jumpListToBottom(): void
-    encryptOnSendDialogOpened(): Promise<void>
-    decryptArmoredPaste(): Promise<void>
+    onSendNewMessage(plain: string): Promise<EncryptedOutgoingBundle>
+    decryptArmoredPaste(armoredText: string): Promise<void>
     /** Resolves `true` when the message was saved */
     confirmSaveScannedInbound(): Promise<boolean>
     pasteMessageQrFromClipboard(): Promise<void>

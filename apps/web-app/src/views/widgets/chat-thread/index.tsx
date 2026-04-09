@@ -16,37 +16,58 @@ import { ChatThreadMessageList } from "./chat-thread-message-list"
 
 export function ChatThreadWidget() {
     const t = useT()
-    const { chat, snap } = useChatThread()
     const nextTick = useNextTickLayout()
+
+    const { chat, snap } = useChatThread()
+
     const { contactId } = useParams({ from: "/authed/chat/$contactId" })
+
     const listRef = useRef<BidirectionalListRef<MessagePlain>>(null)
 
     const [sendModalOpen, setSendModalOpen] = useState(false)
     const [receiveModalOpen, setReceiveModalOpen] = useState(false)
+    const [newMessageText, setNewMessageText] = useState("")
+    const sendMessageTextRef = useRef("")
 
-    const setActiveContactIdMutation = useMutation({
+    const setActiveContactId = useMutation({
         mutationFn: (id: string | null) => chat.setActiveContactId(id),
     })
 
-    const encryptOnSendDialogOpenedMutation = useMutation({
-        mutationFn: () => chat.encryptOnSendDialogOpened(),
+    const sendNewMessage = useMutation({
+        mutationFn: (messageText: string) => chat.onSendNewMessage(messageText),
+        onSuccess: () => {
+            setNewMessageText("")
+        },
         onError: () => {
             setSendModalOpen(false)
         },
     })
 
+    const sendNewMessageMutate = sendNewMessage.mutate
+
     const openSendModal = useCallback(() => {
-        if (!chat.state.composerPlain.trim()) {
+        const sendMessageText = newMessageText.trim()
+
+        if (!sendMessageText) {
             return
         }
 
         chat.clearToast()
+
+        sendMessageTextRef.current = sendMessageText
+
         setSendModalOpen(true)
-    }, [chat])
+
+        sendNewMessageMutate(sendMessageText)
+    }, [chat, newMessageText, sendNewMessageMutate])
 
     useEffect(() => {
-        setActiveContactIdMutation.mutate(contactId ?? null)
-    }, [contactId, setActiveContactIdMutation])
+        setActiveContactId.mutate(contactId ?? null)
+    }, [contactId, setActiveContactId])
+
+    useEffect(() => {
+        setNewMessageText("")
+    }, [contactId])
 
     useEffect(() => {
         if (!snap.pendingScrollToBottom) {
@@ -54,18 +75,11 @@ export function ChatThreadWidget() {
         }
 
         chat.clearPendingScrollToBottom()
+
         nextTick(() => {
             listRef.current?.scrollToBottom("instant")
         })
     }, [snap.pendingScrollToBottom, chat, nextTick])
-
-    useEffect(() => {
-        if (!sendModalOpen) {
-            return
-        }
-
-        encryptOnSendDialogOpenedMutation.mutate()
-    }, [sendModalOpen, encryptOnSendDialogOpenedMutation])
 
     if (!contactId) {
         return null
@@ -102,10 +116,7 @@ export function ChatThreadWidget() {
                 }}
             />
 
-            <ChatThreadMessageList
-                ref={listRef}
-                chat={chat}
-            />
+            <ChatThreadMessageList ref={listRef} chat={chat} />
 
             {snap.toast && (
                 <p className="shrink-0 border-b border-border bg-muted/40 px-3 py-2 text-center text-xs text-muted-foreground">
@@ -114,15 +125,23 @@ export function ChatThreadWidget() {
             )}
 
             <ChatThreadComposer
-                chat={chat}
+                value={newMessageText}
+                onChange={setNewMessageText}
                 onSubmit={openSendModal}
             />
 
             <ChatSendEncryptedDialog
                 open={sendModalOpen}
-                onOpenChange={setSendModalOpen}
+                onOpenChange={(nextOpen) => {
+                    setSendModalOpen(nextOpen)
+
+                    if (!nextOpen) {
+                        sendNewMessage.reset()
+                    }
+                }}
                 chat={chat}
-                encryptPending={encryptOnSendDialogOpenedMutation.isPending}
+                encryptedResult={sendNewMessage.data ?? null}
+                isPending={sendNewMessage.isPending}
             />
 
             <ChatReceiveEncryptedDialog

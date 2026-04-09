@@ -1,9 +1,8 @@
 import { QR_MESSAGE_MAX_BYTES } from "@/di/secure/constants"
-import { useMemo, type ReactNode } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import { useT } from "@/di/react/hooks/useT"
 import { Button } from "@/views/ui/button"
 import { useSnapshot } from "valtio/react"
-import type { Snapshot } from "valtio/vanilla"
 import { useMutation } from "@tanstack/react-query"
 import {
     Dialog,
@@ -15,11 +14,7 @@ import {
 import { ImportQrBlock } from "@/views/widgets/qr-io/import-qr-block"
 import { ImportQrPreviewShell } from "@/views/widgets/qr-io/import-qr-preview-shell"
 
-import type {
-    ChatThreadImportState,
-    ChatThreadState,
-    IChatThreadService,
-} from "@/di/chat-thread/types"
+import type { ChatThreadImportState, IChatThreadService } from "@/di/chat-thread/types"
 
 import { payloadByteLength } from "./utils"
 
@@ -115,7 +110,8 @@ function ChatImportQrPreview(props: {
 
 function ChatImportQrBlock({
     chat,
-    snap,
+    pasteArmored,
+    onPasteArmoredChange,
     t,
     isProcessing,
     onDecryptArmoredSubmit,
@@ -124,7 +120,8 @@ function ChatImportQrBlock({
     children,
 }: {
     chat: IChatThreadService
-    snap: Snapshot<ChatThreadState>
+    pasteArmored: string
+    onPasteArmoredChange: (value: string) => void
     t: ReturnType<typeof useT>
     isProcessing: boolean
     onDecryptArmoredSubmit: () => void
@@ -145,8 +142,8 @@ function ChatImportQrBlock({
                 armoredPlaceholder: t("chat.pasteArmoredPlaceholder"),
             }}
             armored={{
-                value: snap.pasteIn,
-                onChange: (v) => chat.setPasteIn(v),
+                value: pasteArmored,
+                onChange: onPasteArmoredChange,
                 onSubmit: onDecryptArmoredSubmit,
             }}
             isProcessing={isProcessing}
@@ -179,8 +176,13 @@ export function ChatReceiveEncryptedDialog({
     const snap = useSnapshot(chat.state)
     const contact = snap.contact
 
+    const [pasteArmored, setPasteArmored] = useState("")
+
     const decryptArmoredPasteMutation = useMutation({
-        mutationFn: () => chat.decryptArmoredPaste(),
+        mutationFn: () => chat.decryptArmoredPaste(pasteArmored),
+        onSuccess: () => {
+            setPasteArmored("")
+        },
     })
 
     const pasteMessageQrFromClipboardMutation = useMutation({
@@ -211,7 +213,16 @@ export function ChatReceiveEncryptedDialog({
     }
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog
+            open={open}
+            onOpenChange={(nextOpen) => {
+                onOpenChange(nextOpen)
+
+                if (!nextOpen) {
+                    setPasteArmored("")
+                }
+            }}
+        >
             <DialogContent
                 showCloseButton
                 className="flex max-h-[min(92dvh,48rem)] w-full max-w-lg flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
@@ -230,7 +241,8 @@ export function ChatReceiveEncryptedDialog({
                 <div className="max-h-[min(75dvh,40rem)] min-h-0 overflow-y-auto p-4">
                     <ChatImportQrBlock
                         chat={chat}
-                        snap={snap}
+                        pasteArmored={pasteArmored}
+                        onPasteArmoredChange={setPasteArmored}
                         t={t}
                         isProcessing={isProcessing}
                         onDecryptArmoredSubmit={() =>

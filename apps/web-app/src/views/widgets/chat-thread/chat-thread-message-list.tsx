@@ -17,16 +17,14 @@ type ChatThreadMessageListProps = {
 export const ChatThreadMessageList = forwardRef<
     BidirectionalListRef<MessagePlain>,
     ChatThreadMessageListProps
->(function ChatThreadMessageList(
-    { chat },
-    ref,
-) {
+>(function ChatThreadMessageList({ chat }, ref) {
     const t = useT()
     const snap = useSnapshot(chat.state)
 
     const hasPrevious =
         snap.listItems.length > 0 &&
         snap.listItems[0]?.id !== snap.fullMessages[0]?.id
+
     const hasNext =
         snap.listItems.length > 0 &&
         snap.listItems[snap.listItems.length - 1]?.id !==
@@ -68,10 +66,7 @@ export const ChatThreadMessageList = forwardRef<
                     `flex px-3 py-1.5 ${m.direction === "out" ? "justify-end" : "justify-start"}`
                 }
                 renderItem={(m) => (
-                    <ChatMessageBubble
-                        message={m}
-                        chat={chat}
-                    />
+                    <ChatMessageBubble message={m} chat={chat} />
                 )}
             />
 
