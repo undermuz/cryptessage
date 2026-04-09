@@ -4,15 +4,16 @@ Browser-based, **offline-first** messaging for hostile networks: you exchange **
 
 There are **no central servers** and **no cloud account**. A **passphrase** derives a master key (**PBKDF2**); **contacts, messages, and private keys** are stored in **IndexedDB** encrypted with **AES-GCM**. The passphrase is **never** persisted—only kept in memory for the session.
 
-> **v0.1** ships as a normal **SPA** (Vite). Installable **PWA** (service worker, manifest) is planned as a separate iteration.
+> **v0.1** ships as a normal **SPA** (Vite). PWA plumbing exists (manifest + service worker via VitePWA), but treat it as **work-in-progress**.
 
 ## Features
 
 - **Unlock / create vault / restore backup** — one JSON backup file, encrypted with the same KDF + AES-GCM as the database (salt embedded in the file header).
-- **OpenPGP** — ECC keys (OpenPGP.js), encrypt+sign to a contact, decrypt+verify inbound armored messages.
-- **QR** — visit cards (JSON payload) and encrypted message blobs (length-limited; very long text may not fit a single QR).
+- **Messaging crypto (2 protocols)** — `openpgp` (OpenPGP.js, encrypt+sign, decrypt+verify) and `compact_v1` (X25519 + XSalsa20-Poly1305 + Ed25519 signature).
+- **QR** — visit cards (legacy JSON, or binary `CMV2`) and encrypted message blobs (binary QR wrappers `CMM1` / `CMK1`; length-limited — very long text may not fit a single QR).
 - **TanStack Router** — typed routes with an auth guard: locked session redirects to `/unlock`.
 - **InversifyJS** — crypto, storage, identity, backup, and conversation services are wired through DI (see `apps/web-app/src/di`).
+- **HeroUI v3** — new/updated screens are implemented with HeroUI v3 components (see “UI migration status”).
 
 ## Stack
 
@@ -20,7 +21,7 @@ There are **no central servers** and **no cloud account**. A **passphrase** deri
 | ----------- | ----------------------------------------------- |
 | Monorepo    | Nx                                              |
 | App         | React 19, Vite 8, TypeScript                    |
-| UI          | Tailwind CSS 4, shadcn-style primitives (Base UI) |
+| UI          | Tailwind CSS 4, HeroUI v3 (`@heroui/react`, `@heroui/styles`) |
 | Routing     | TanStack Router                                 |
 | DI          | InversifyJS                                     |
 | Crypto      | Web Crypto (PBKDF2, AES-GCM), OpenPGP.js        |
@@ -75,6 +76,15 @@ The template **Config** service may read `VITE_*` variables (see `apps/web-app/s
 - **At rest** — record payloads in IDB are AES-GCM–encrypted; passphrase never written to `localStorage`.
 - **Session** — reload clears the in-memory key; user must unlock again.
 - **Backup file** — encrypted blob; needs **passphrase + file** to restore on another profile/device.
+- **In transit**:
+  - **`openpgp`** — OpenPGP.js encrypts to the recipient public key and signs with your private key; on decrypt, cryptessage verifies signatures against the sender public key.
+  - **`compact_v1`** — per-message ephemeral X25519 ECDH; the shared secret is SHA-256–expanded with a fixed domain string to derive an XSalsa20-Poly1305 key (`secretbox`). The plaintext is signed with Ed25519 and the signature is embedded in the encrypted payload, then verified on decrypt.
+
+Implementation pointers (web app):
+
+- `apps/web-app/src/di/messaging-crypto/messaging-crypto.provider.ts` — protocol selection + QR payload wrapping.
+- `apps/web-app/src/di/openpgp-crypto/openpgp-crypto.provider.ts` — OpenPGP encrypt/sign + decrypt/verify + visit cards (`CMV2`).
+- `apps/web-app/src/di/compact-crypto/compact-message.ts` and `apps/web-app/src/di/compact-crypto/visit-card.ts` — `compact_v1` packet/visit-card layout.
 
 This is **not** a substitute for a full security audit. Threat model assumes a trusted browser runtime and no malware on the device.
 
