@@ -30,6 +30,8 @@ import { PAGE_SIZE, VIEW_COUNT } from "./constants"
 import type {
     ChatThreadImportState,
     ChatThreadState,
+    DecryptedMessageItem,
+    DecryptPreviewState,
     IChatThreadService,
 } from "./types"
 import { isCiphertextForRecipientNotSelf } from "./utils"
@@ -76,6 +78,14 @@ export class ChatThreadProvider implements IChatThreadService {
         )
     }
 
+    get contact(): NonNullable<ChatThreadState["contact"]> {
+        const contact = this.state.contact
+
+        invariant(contact !== null, "Invalid contact")
+
+        return contact
+    }
+
     private abortPromises(): void {
         this.pm.abort("chatThread:loadContact")
         this.pm.abort("chatThread:decryptImport")
@@ -92,23 +102,16 @@ export class ChatThreadProvider implements IChatThreadService {
             contactId,
             contact: null,
             isPendingList: false,
-            fullMessages: [],
-            listItems: [],
+            encryptedMessages: [],
+            decryptedMessages: [],
             import: {
                 data: null,
                 pending: false,
                 decrypted: null,
                 error: null,
             },
-            inboundDecrypted: {},
-            outboundDecrypted: {},
             pendingScrollToBottom: false,
         }
-    }
-
-    private setMessages(all: MessagePlain[]): void {
-        this.state.fullMessages = all
-        this.state.listItems = all.slice(-VIEW_COUNT)
     }
 
     private resetState(contactId: string | null): void {
@@ -118,8 +121,8 @@ export class ChatThreadProvider implements IChatThreadService {
         )
     }
 
-    public setListItems(items: MessagePlain[]): void {
-        this.state.listItems = items
+    public setDecryptedMessages(items: DecryptedMessageItem[]): void {
+        this.state.decryptedMessages = items
     }
 
     private emitToast(message: string): void {
@@ -130,9 +133,85 @@ export class ChatThreadProvider implements IChatThreadService {
         this.state.pendingScrollToBottom = false
     }
 
-    public jumpListToBottom(): void {
-        this.state.listItems = this.state.fullMessages.slice(-VIEW_COUNT)
+    public async jumpListToBottom(): Promise<void> {
+        const last = this.state.encryptedMessages.slice(-VIEW_COUNT)
+
+        const items = await this.decryptMessageList(this.contact, last)
+
+        this.state.decryptedMessages = items
         this.state.pendingScrollToBottom = true
+    }
+
+    private async decryptOneMessage(
+        contact: NonNullable<ChatThreadState["contact"]>,
+        m: MessagePlain,
+        signal?: AbortSignal,
+    ): Promise<DecryptPreviewState | null> {
+        if (signal?.aborted) {
+            return null
+        }
+
+        if (m.direction === "out") {
+            const selfPl = m.outboundSelfPayload
+
+            if (!selfPl) {
+                return { ok: false, err: "missing self payload" }
+            }
+
+            try {
+                const r = await this.messaging.decryptOutboundSelf(
+                    selfPl,
+                    m.cryptoProtocol,
+                )
+
+                if (signal?.aborted) {
+                    return null
+                }
+
+                return { ok: true, text: r.text, sig: r.signaturesValid }
+            } catch (e) {
+                const err = e instanceof Error ? e.message : String(e)
+
+                return { ok: false, err }
+            }
+        }
+
+        try {
+            const r = await this.messaging.decryptIncoming(
+                contact,
+                m.channelPayload,
+                m.cryptoProtocol,
+            )
+
+            if (signal?.aborted) {
+                return null
+            }
+
+            return { ok: true, text: r.text, sig: r.signaturesValid }
+        } catch (e) {
+            const err = e instanceof Error ? e.message : String(e)
+
+            return { ok: false, err }
+        }
+    }
+
+    private async decryptMessageList(
+        contact: NonNullable<ChatThreadState["contact"]>,
+        messages: MessagePlain[],
+        signal?: AbortSignal,
+    ): Promise<DecryptedMessageItem[]> {
+        const decrypted = await Promise.all(
+            messages.map(async (m) => ({
+                message: m,
+                decrypted: await this.decryptOneMessage(contact, m, signal),
+            })),
+        )
+
+        if (signal?.aborted) {
+            throw new DOMException("AbortError")
+        }
+
+        return decrypted
     }
 
     private async _loadContact(
@@ -155,9 +234,17 @@ export class ChatThreadProvider implements IChatThreadService {
 
             if (signal.aborted) return
 
-            this.setMessages(all)
+            this.state.encryptedMessages = all
 
-            await this.decryptMessages(signal)
+            const items = await this.decryptMessageList(
+                this.contact,
+                all.slice(-VIEW_COUNT),
+                signal,
+            )
+
+            if (signal.aborted) return
+
+            this.state.decryptedMessages = items
         } finally {
             if (!signal.aborted) {
                 this.state.pendingScrollToBottom = true
@@ -467,136 +554,27 @@ export class ChatThreadProvider implements IChatThreadService {
         }
     }
 
-    private async decryptMessages(signal: AbortSignal): Promise<void> {
-        const contact = this.state.contact
-        const messages = this.state.fullMessages
+    public readonly loadMore: IChatThreadService["loadMore"] = async (
+        direction,
+        refItem,
+    ) => {
+        const full = this.state.encryptedMessages
 
-        if (!contact) {
-            this.state.inboundDecrypted = {}
-
-            return
-        }
-
-        if (signal.aborted) {
-            return
-        }
-
-        const inbound = messages.filter((m) => m.direction === "in")
-
-        if (inbound.length === 0) {
-            this.state.inboundDecrypted = {}
-        } else {
-            const inboundEntries = await Promise.all(
-                inbound.map(async (m) => {
-                    if (signal.aborted) {
-                        return [m.id, { ok: false, err: "aborted" }] as const
-                    }
-
-                    try {
-                        const r = await this.messaging.decryptIncoming(
-                            contact,
-                            m.channelPayload,
-                            m.cryptoProtocol,
-                        )
-
-                        return [
-                            m.id,
-                            {
-                                ok: true,
-                                text: r.text,
-                                sig: r.signaturesValid,
-                            },
-                        ] as const
-                    } catch (e) {
-                        const err = e instanceof Error ? e.message : String(e)
-
-                        return [m.id, { ok: false, err }] as const
-                    }
-                }),
-            )
-
-            if (signal.aborted) {
-                return
-            }
-
-            this.state.inboundDecrypted = Object.fromEntries(inboundEntries)
-        }
-
-        const outbound = messages.filter((m) => m.direction === "out")
-
-        if (outbound.length === 0) {
-            this.state.outboundDecrypted = {}
-
-            return
-        }
-
-        if (signal.aborted) {
-            return
-        }
-
-        const outboundEntries = await Promise.all(
-            outbound.map(async (m) => {
-                if (signal.aborted) {
-                    return [m.id, { ok: false, err: "aborted" }] as const
-                }
-
-                const selfPl = m.outboundSelfPayload
-
-                if (!selfPl) {
-                    return [
-                        m.id,
-                        { ok: false, err: "missing self payload" },
-                    ] as const
-                }
-
-                try {
-                    const r = await this.messaging.decryptOutboundSelf(
-                        selfPl,
-                        m.cryptoProtocol,
-                    )
-
-                    return [
-                        m.id,
-                        {
-                            ok: true,
-                            text: r.text,
-                            sig: r.signaturesValid,
-                        },
-                    ] as const
-                } catch (e) {
-                    const err = e instanceof Error ? e.message : String(e)
-
-                    return [m.id, { ok: false, err }] as const
-                }
-            }),
-        )
-
-        if (signal.aborted) {
-            return
-        }
-
-        this.state.outboundDecrypted = Object.fromEntries(outboundEntries)
-    }
-
-    public async loadMore(
-        direction: "up" | "down",
-        refItem: MessagePlain,
-    ): Promise<MessagePlain[]> {
-        const full = this.state.fullMessages
-        const idx = full.findIndex((m) => m.id === refItem.id)
+        const refId = refItem.message.id
+        const idx = full.findIndex((m) => m.id === refId)
 
         if (idx === -1) {
             return []
         }
 
-        if (direction === "up") {
-            const start = Math.max(0, idx - PAGE_SIZE)
+        const slice =
+            direction === "up"
+                ? full.slice(Math.max(0, idx - PAGE_SIZE), idx)
+                : full.slice(
+                      idx + 1,
+                      Math.min(full.length, idx + PAGE_SIZE + 1),
+                  )
 
-            return full.slice(start, idx)
-        }
-
-        const end = Math.min(full.length, idx + PAGE_SIZE + 1)
-
-        return full.slice(idx + 1, end)
+        return this.decryptMessageList(this.contact, slice)
     }
 }

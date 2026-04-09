@@ -1,14 +1,14 @@
-import type { MessagePlain } from "@/di/crypt-db/types-data"
 import { useT } from "@/di/react/hooks/useT"
 import { useSnapshot } from "valtio/react"
 import type { IChatThreadService } from "@/di/chat-thread/types"
+import type { DecryptedMessageItem } from "@/di/chat-thread/types"
 
 function renderBody(
     t: (key: string, options?: Record<string, unknown>) => string,
-    m: MessagePlain,
-    inboundPreview: IChatThreadService["state"]["inboundDecrypted"],
-    outboundPreview: IChatThreadService["state"]["outboundDecrypted"],
+    item: DecryptedMessageItem,
 ) {
+    const m = item.message
+    const prev = item.decrypted
     const selfPayload = m.outboundSelfPayload
 
     if (m.direction === "out") {
@@ -19,8 +19,6 @@ function renderBody(
                 </p>
             )
         }
-
-        const prev = outboundPreview[m.id]
 
         if (!prev) {
             return (
@@ -36,19 +34,18 @@ function renderBody(
                     <p className="whitespace-pre-wrap text-sm leading-snug">
                         {prev.text}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">
-                        {prev.sig
-                            ? t("chat.signatureOk")
-                            : t("chat.signatureBad")}
-                    </p>
+
+                    {!prev.sig && (
+                        <p className="text-[10px] text-muted-foreground">
+                            {t("chat.signatureBad")}
+                        </p>
+                    )}
                 </div>
             )
         }
 
         return <p className="mt-1 text-xs text-destructive">{prev.err}</p>
     }
-
-    const prev = inboundPreview[m.id]
 
     if (!prev) {
         return (
@@ -64,9 +61,12 @@ function renderBody(
                 <p className="whitespace-pre-wrap text-sm leading-snug">
                     {prev.text}
                 </p>
-                <p className="text-[10px] text-muted-foreground">
-                    {prev.sig ? t("chat.signatureOk") : t("chat.signatureBad")}
-                </p>
+
+                {!prev.sig && (
+                    <p className="text-[10px] text-muted-foreground">
+                        {t("chat.signatureBad")}
+                    </p>
+                )}
             </div>
         )
     }
@@ -75,15 +75,19 @@ function renderBody(
 }
 
 export function ChatMessageBubble({
-    message: m,
+    item,
     chat,
+    onClick,
 }: {
-    message: MessagePlain
+    item: DecryptedMessageItem
     chat: IChatThreadService
+    onClick?: () => void
 }) {
     const t = useT()
-    const snap = useSnapshot(chat.state)
-    const mine = m.direction === "out"
+
+    useSnapshot(chat.state)
+
+    const mine = item.message.direction === "out"
 
     return (
         <div
@@ -91,18 +95,21 @@ export function ChatMessageBubble({
                 mine
                     ? "rounded-br-md bg-primary text-primary-foreground"
                     : "rounded-bl-md border border-border bg-background text-foreground"
-            }`}
+            } ${mine ? "cursor-pointer select-none" : ""}`}
+            role={mine ? "button" : undefined}
+            tabIndex={mine ? 0 : undefined}
+            onClick={mine ? onClick : undefined}
         >
-            {renderBody(t, m, snap.inboundDecrypted, snap.outboundDecrypted)}
+            {renderBody(t, item)}
             <time
                 className={`mt-1 block text-end text-[9px] font-medium uppercase tracking-tight ${
                     mine
                         ? "text-primary-foreground/70"
                         : "text-muted-foreground"
                 }`}
-                dateTime={new Date(m.createdAt).toISOString()}
+                dateTime={new Date(item.message.createdAt).toISOString()}
             >
-                {new Date(m.createdAt).toLocaleTimeString([], {
+                {new Date(item.message.createdAt).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
                 })}

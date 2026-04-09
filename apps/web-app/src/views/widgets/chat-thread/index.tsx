@@ -8,9 +8,14 @@ import {
     EventBusProvider,
     type IEventObserver,
 } from "@/di/utils/event-bus/types"
+import {
+    ConversationService,
+    type IConversationService,
+} from "@/di/conversation/types"
 import { useT } from "@/di/react/hooks/useT"
 import { useChatThread } from "@/di/react/hooks/useChatThread"
 import type { MessagePlain } from "@/di/crypt-db/types-data"
+import type { DecryptedMessageItem } from "@/di/chat-thread/types"
 import type { BidirectionalListRef } from "broad-infinite-list/react"
 
 import { ChatReceiveEncryptedDialog } from "./chat-receive-encrypted-dialog"
@@ -25,10 +30,11 @@ export function ChatThreadWidget() {
 
     const { chat, snap } = useChatThread()
     const events = useDi<IEventObserver>(EventBusProvider)
+    const conv = useDi<IConversationService>(ConversationService)
 
     const { contactId } = useParams({ from: "/authed/chat/$contactId" })
 
-    const listRef = useRef<BidirectionalListRef<MessagePlain>>(null)
+    const listRef = useRef<BidirectionalListRef<DecryptedMessageItem>>(null)
 
     const [threadScreenReady, setThreadScreenReady] = useState(false)
 
@@ -37,6 +43,9 @@ export function ChatThreadWidget() {
     const [newMessageText, setNewMessageText] = useState("")
     const sendMessageTextRef = useRef("")
     const [toast, setToast] = useState<string | null>(null)
+    const [sentPreviewOpen, setSentPreviewOpen] = useState(false)
+    const [sentPreviewMessage, setSentPreviewMessage] =
+        useState<MessagePlain | null>(null)
 
     const setActiveContactId = useMutation({
         mutationFn: (id: string | null) => chat.setActiveContactId(id),
@@ -49,6 +58,21 @@ export function ChatThreadWidget() {
         },
         onError: () => {
             setSendModalOpen(false)
+        },
+    })
+
+    const sentEncryptedResult = useMutation({
+        mutationFn: async (plain: string) => {
+            if (!contactId) {
+                throw new Error("Missing contactId")
+            }
+
+            return await conv.encryptOutgoingBundle(contactId, plain)
+        },
+        onError: (e) => {
+            const reason = e instanceof Error ? e.message : String(e)
+
+            setToast(reason)
         },
     })
 
@@ -150,6 +174,30 @@ export function ChatThreadWidget() {
                 ref={listRef}
                 chat={chat}
                 listDisabled={snap.isPendingList}
+                onOutboundMessageClick={(item: DecryptedMessageItem) => {
+                    const m = item.message
+
+                    setToast(null)
+
+                    if (!m.outboundSelfPayload) {
+                        setToast(t("chat.outboundLegacyNoSelfCopy"))
+                        return
+                    }
+
+                    if (!item.decrypted) {
+                        setToast(t("common.loading"))
+                        return
+                    }
+
+                    if (!item.decrypted.ok) {
+                        setToast(item.decrypted.err)
+                        return
+                    }
+
+                    setSentPreviewMessage(m)
+                    setSentPreviewOpen(true)
+                    sentEncryptedResult.mutate(item.decrypted.text)
+                }}
             />
 
             {toast && (
@@ -178,6 +226,24 @@ export function ChatThreadWidget() {
                 onNotify={setToast}
                 isPending={sendNewMessage.isPending}
             />
+
+            {sentPreviewMessage && (
+                <ChatSendEncryptedDialog
+                    open={sentPreviewOpen}
+                    onOpenChange={(nextOpen) => {
+                        setSentPreviewOpen(nextOpen)
+
+                        if (!nextOpen) {
+                            sentEncryptedResult.reset()
+                            setSentPreviewMessage(null)
+                        }
+                    }}
+                    chat={chat}
+                    encryptedResult={sentEncryptedResult.data ?? null}
+                    onNotify={setToast}
+                    isPending={sentEncryptedResult.isPending}
+                />
+            )}
 
             <ChatReceiveEncryptedDialog
                 open={receiveModalOpen}

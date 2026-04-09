@@ -2,53 +2,56 @@ import { forwardRef } from "react"
 import BidirectionalList, {
     type BidirectionalListRef,
 } from "broad-infinite-list/react"
-import type { MessagePlain } from "@/di/crypt-db/types-data"
 import { useT } from "@/di/react/hooks/useT"
 import { useSnapshot } from "valtio/react"
 
 import { ChatMessageBubble } from "./chat-message-bubble"
 import { LIST_THRESHOLD, VIEW_COUNT } from "@/di/chat-thread/constants"
-import type { IChatThreadService } from "@/di/chat-thread/types"
+import type { DecryptedMessageItem, IChatThreadService } from "@/di/chat-thread/types"
 
 type ChatThreadMessageListProps = {
     chat: IChatThreadService
     listDisabled: boolean
+    onOutboundMessageClick?: (message: DecryptedMessageItem) => void
 }
 
 export const ChatThreadMessageList = forwardRef<
-    BidirectionalListRef<MessagePlain>,
+    BidirectionalListRef<DecryptedMessageItem>,
     ChatThreadMessageListProps
->(function ChatThreadMessageList({ chat, listDisabled }, ref) {
+>(function ChatThreadMessageList(
+    { chat, listDisabled, onOutboundMessageClick },
+    ref,
+) {
     const t = useT()
     const snap = useSnapshot(chat.state)
 
     const hasPrevious =
-        snap.listItems.length > 0 &&
-        snap.listItems[0]?.id !== snap.fullMessages[0]?.id
+        snap.decryptedMessages.length > 0 &&
+        snap.decryptedMessages[0]?.message.id !== snap.encryptedMessages[0]?.id
 
     const hasNext =
-        snap.listItems.length > 0 &&
-        snap.listItems[snap.listItems.length - 1]?.id !==
-            snap.fullMessages[snap.fullMessages.length - 1]?.id
+        snap.decryptedMessages.length > 0 &&
+        snap.decryptedMessages[snap.decryptedMessages.length - 1]?.message.id !==
+            snap.encryptedMessages[snap.encryptedMessages.length - 1]?.id
 
     const showJumpToBottom =
-        snap.listItems.length > 0 &&
-        snap.listItems[snap.listItems.length - 1]?.id !==
-            snap.fullMessages[snap.fullMessages.length - 1]?.id
+        snap.decryptedMessages.length > 0 &&
+        snap.decryptedMessages[snap.decryptedMessages.length - 1]?.message.id !==
+            snap.encryptedMessages[snap.encryptedMessages.length - 1]?.id
 
     return (
         <>
-            <BidirectionalList<MessagePlain>
+            <BidirectionalList<DecryptedMessageItem>
                 ref={ref}
-                items={chat.state.listItems}
-                itemKey={(m) => m.id}
+                items={chat.state.decryptedMessages}
+                itemKey={(m) => m.message.id}
                 useWindow={false}
                 hasPrevious={hasPrevious}
                 hasNext={hasNext}
                 viewCount={VIEW_COUNT}
                 threshold={LIST_THRESHOLD}
                 onLoadMore={chat.loadMore}
-                onItemsChange={(items) => chat.setListItems(items)}
+                onItemsChange={(items) => chat.setDecryptedMessages(items)}
                 disable={listDisabled}
                 spinnerRow={
                     <div className="flex justify-center py-3">
@@ -64,10 +67,18 @@ export const ChatThreadMessageList = forwardRef<
                 as="ul"
                 itemAs="li"
                 itemClassName={(m) =>
-                    `flex px-3 py-1.5 ${m.direction === "out" ? "justify-end" : "justify-start"}`
+                    `flex px-3 py-1.5 ${m.message.direction === "out" ? "justify-end" : "justify-start"}`
                 }
                 renderItem={(m) => (
-                    <ChatMessageBubble message={m} chat={chat} />
+                    <ChatMessageBubble
+                        item={m}
+                        chat={chat}
+                        onClick={
+                            m.message.direction === "out"
+                                ? () => onOutboundMessageClick?.(m)
+                                : undefined
+                        }
+                    />
                 )}
             />
 
