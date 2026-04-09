@@ -20,7 +20,6 @@ import {
     PromiseManagerProvider,
     type PromiseManager,
 } from "@/di/utils/promise-manager/types"
-import type { MessagePlain } from "@/di/crypt-db/types-data"
 import {
     decodeQrFromClipboardImage,
     decodeQrFromImageBlob,
@@ -31,9 +30,10 @@ import type {
     ChatThreadImportState,
     ChatThreadState,
     DecryptedMessageItem,
-    DecryptPreviewState,
+    IChatThreadDecryptService,
     IChatThreadService,
 } from "./types"
+import { ChatThreadDecryptService } from "./types"
 import { isCiphertextForRecipientNotSelf } from "./utils"
 import { invariant } from "@/lib/utils"
 
@@ -59,6 +59,9 @@ export class ChatThreadProvider implements IChatThreadService {
 
     @inject(MessagingCryptoService)
     private readonly messaging!: IMessagingCryptoService
+
+    @inject(ChatThreadDecryptService)
+    private readonly decrypt!: IChatThreadDecryptService
 
     @inject(I18nProvider)
     private readonly i18n!: I18nService
@@ -136,82 +139,10 @@ export class ChatThreadProvider implements IChatThreadService {
     public async jumpListToBottom(): Promise<void> {
         const last = this.state.encryptedMessages.slice(-VIEW_COUNT)
 
-        const items = await this.decryptMessageList(this.contact, last)
+        const items = await this.decrypt.decryptList(this.contact, last)
 
         this.state.decryptedMessages = items
         this.state.pendingScrollToBottom = true
-    }
-
-    private async decryptOneMessage(
-        contact: NonNullable<ChatThreadState["contact"]>,
-        m: MessagePlain,
-        signal?: AbortSignal,
-    ): Promise<DecryptPreviewState | null> {
-        if (signal?.aborted) {
-            return null
-        }
-
-        if (m.direction === "out") {
-            const selfPl = m.outboundSelfPayload
-
-            if (!selfPl) {
-                return { ok: false, err: "missing self payload" }
-            }
-
-            try {
-                const r = await this.messaging.decryptOutboundSelf(
-                    selfPl,
-                    m.cryptoProtocol,
-                )
-
-                if (signal?.aborted) {
-                    return null
-                }
-
-                return { ok: true, text: r.text, sig: r.signaturesValid }
-            } catch (e) {
-                const err = e instanceof Error ? e.message : String(e)
-
-                return { ok: false, err }
-            }
-        }
-
-        try {
-            const r = await this.messaging.decryptIncoming(
-                contact,
-                m.channelPayload,
-                m.cryptoProtocol,
-            )
-
-            if (signal?.aborted) {
-                return null
-            }
-
-            return { ok: true, text: r.text, sig: r.signaturesValid }
-        } catch (e) {
-            const err = e instanceof Error ? e.message : String(e)
-
-            return { ok: false, err }
-        }
-    }
-
-    private async decryptMessageList(
-        contact: NonNullable<ChatThreadState["contact"]>,
-        messages: MessagePlain[],
-        signal?: AbortSignal,
-    ): Promise<DecryptedMessageItem[]> {
-        const decrypted = await Promise.all(
-            messages.map(async (m) => ({
-                message: m,
-                decrypted: await this.decryptOneMessage(contact, m, signal),
-            })),
-        )
-
-        if (signal?.aborted) {
-            throw new DOMException("AbortError")
-        }
-
-        return decrypted
     }
 
     private async _loadContact(
@@ -236,7 +167,7 @@ export class ChatThreadProvider implements IChatThreadService {
 
             this.state.encryptedMessages = all
 
-            const items = await this.decryptMessageList(
+            const items = await this.decrypt.decryptList(
                 this.contact,
                 all.slice(-VIEW_COUNT),
                 signal,
@@ -570,11 +501,8 @@ export class ChatThreadProvider implements IChatThreadService {
         const slice =
             direction === "up"
                 ? full.slice(Math.max(0, idx - PAGE_SIZE), idx)
-                : full.slice(
-                      idx + 1,
-                      Math.min(full.length, idx + PAGE_SIZE + 1),
-                  )
+                : full.slice(idx + 1, Math.min(full.length, idx + PAGE_SIZE + 1))
 
-        return this.decryptMessageList(this.contact, slice)
+        return this.decrypt.decryptList(this.contact, slice)
     }
 }

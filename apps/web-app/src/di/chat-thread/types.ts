@@ -3,6 +3,7 @@ import type { EncryptedOutgoingBundle } from "@/di/messaging-crypto/types"
 import type { VisitCardRawPayload } from "@/di/openpgp-crypto/types"
 
 export const ChatThreadService = Symbol.for("ChatThreadService")
+export const ChatThreadDecryptService = Symbol.for("ChatThreadDecryptService")
 
 export type ImportSource = "camera" | "clipboard" | "file" | "manual"
 
@@ -13,6 +14,19 @@ export type DecryptPreviewState =
 export type DecryptedMessageItem = {
     message: MessagePlain
     decrypted: DecryptPreviewState | null
+}
+
+export type IChatThreadDecryptService = {
+    decryptOne(
+        contact: ContactPlain,
+        m: MessagePlain,
+        signal?: AbortSignal,
+    ): Promise<DecryptPreviewState | null>
+    decryptList(
+        contact: ContactPlain,
+        messages: MessagePlain[],
+        signal?: AbortSignal,
+    ): Promise<DecryptedMessageItem[]>
 }
 
 export type ChatThreadImportState = {

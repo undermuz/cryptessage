@@ -1,3 +1,5 @@
+@Docs https://heroui.com/react/llms-full.txt
+
 # AGENTS Guide
 
 This document describes practical rules for AI agents working in `apps/web-app`.
