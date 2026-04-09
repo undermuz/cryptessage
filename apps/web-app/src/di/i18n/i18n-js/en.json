@@ -119,6 +119,7 @@
         "receiveModalTitle": "Receive encrypted message",
         "scrollToBottom": "Scroll to bottom",
         "emptyThread": "No messages yet.",
+        "open": "Open",
         "closeModal": "Close"
     },
     "settings": {
