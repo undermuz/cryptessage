@@ -15,12 +15,12 @@ export type ChatThreadImportState = {
         raw: VisitCardRawPayload
         source: ImportSource
     } | null
-    decryptLoading: boolean
-    decryptPreview: {
+    pending: boolean
+    decrypted: {
         text: string
         signaturesValid: boolean
     } | null
-    decryptErr: string | null
+    error: string | null
 }
 
 export type ChatThreadState = {
@@ -29,9 +29,8 @@ export type ChatThreadState = {
     isPendingList: boolean
     fullMessages: MessagePlain[]
     listItems: MessagePlain[]
-    toast: string | null
-    inboundPreview: Record<string, DecryptPreviewState>
-    outboundPreview: Record<string, DecryptPreviewState>
+    inboundDecrypted: Record<string, DecryptPreviewState>
+    outboundDecrypted: Record<string, DecryptPreviewState>
     pendingScrollToBottom: boolean
     import: ChatThreadImportState
 }
@@ -46,8 +45,6 @@ export type IChatThreadService = {
     setActiveContactId(contactId: string | null): Promise<void>
     setImportData(data: ChatThreadImportState["data"]): void
     setListItems(items: MessagePlain[]): void
-    clearToast(): void
-    setToast(message: string | null): void
     clearPendingScrollToBottom(): void
     reload(): Promise<void>
     loadMore: ChatLoadMoreHandler

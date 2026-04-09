@@ -21,9 +21,11 @@ export function ChatSendEncryptedDialog(props: {
     onOpenChange: (open: boolean) => void
     chat: IChatThreadService
     encryptedResult: EncryptedOutgoingBundle | null
+    onNotify: (message: string | null) => void
     isPending: boolean
 }) {
-    const { open, onOpenChange, chat, encryptedResult, isPending } = props
+    const { open, onOpenChange, chat, encryptedResult, onNotify, isPending } =
+        props
 
     const t = useT()
     const snap = useSnapshot(chat.state)
@@ -91,7 +93,7 @@ export function ChatSendEncryptedDialog(props: {
                             qrPayload={encryptedResult.qrPayloadBinary}
                             maxByteLength={QR_MESSAGE_MAX_BYTES}
                             armoredText={encryptedResult.channelStorage}
-                            onNotify={(msg) => chat.setToast(msg)}
+                            onNotify={onNotify}
                             showArmoredPreview
                             footer={
                                 <div className="space-y-2 text-xs text-muted-foreground">

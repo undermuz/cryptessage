@@ -52,7 +52,7 @@ function ChatImportQrPreview(props: {
     const imp = snap.import
 
     const canReset =
-        !imp.decryptLoading && imp.decryptErr && !imp.decryptPreview
+        !imp.pending && imp.error && !imp.decrypted
 
     return (
         <ImportQrPreviewShell
@@ -62,22 +62,22 @@ function ChatImportQrPreview(props: {
             maxQrBytes={QR_MESSAGE_MAX_BYTES}
             tooLongHint={t("contacts.reviewQrTooLong")}
         >
-            {imp.decryptLoading && (
+            {imp.pending && (
                 <p className="text-muted-foreground">{t("common.loading")}</p>
             )}
 
-            {imp.decryptErr && (
-                <p className="text-sm text-destructive">{imp.decryptErr}</p>
+            {imp.error && (
+                <p className="text-sm text-destructive">{imp.error}</p>
             )}
 
-            {imp.decryptPreview && (
+            {imp.decrypted && (
                 <>
                     <p className="text-sm font-medium">{t("chat.decrypted")}</p>
                     <p className="rounded-md bg-muted p-2 text-sm">
-                        {imp.decryptPreview.text}
+                        {imp.decrypted.text}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                        {imp.decryptPreview.signaturesValid
+                        {imp.decrypted.signaturesValid
                             ? t("chat.signatureOk")
                             : t("chat.signatureBad")}
                     </p>

@@ -6,8 +6,8 @@ import type { IChatThreadService } from "@/di/chat-thread/types"
 function renderBody(
     t: (key: string, options?: Record<string, unknown>) => string,
     m: MessagePlain,
-    inboundPreview: IChatThreadService["state"]["inboundPreview"],
-    outboundPreview: IChatThreadService["state"]["outboundPreview"],
+    inboundPreview: IChatThreadService["state"]["inboundDecrypted"],
+    outboundPreview: IChatThreadService["state"]["outboundDecrypted"],
 ) {
     const selfPayload = m.outboundSelfPayload
 
@@ -93,7 +93,7 @@ export function ChatMessageBubble({
                     : "rounded-bl-md border border-border bg-background text-foreground"
             }`}
         >
-            {renderBody(t, m, snap.inboundPreview, snap.outboundPreview)}
+            {renderBody(t, m, snap.inboundDecrypted, snap.outboundDecrypted)}
             <time
                 className={`mt-1 block text-end text-[9px] font-medium uppercase tracking-tight ${
                     mine

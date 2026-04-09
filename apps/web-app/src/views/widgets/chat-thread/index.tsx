@@ -3,6 +3,11 @@ import { Link, useParams } from "@tanstack/react-router"
 import { useMutation } from "@tanstack/react-query"
 import { useNextTickLayout } from "use-next-tick"
 
+import { useDi } from "@/di/react/hooks/useDi"
+import {
+    EventBusProvider,
+    type IEventObserver,
+} from "@/di/utils/event-bus/types"
 import { useT } from "@/di/react/hooks/useT"
 import { useChatThread } from "@/di/react/hooks/useChatThread"
 import type { MessagePlain } from "@/di/crypt-db/types-data"
@@ -19,6 +24,7 @@ export function ChatThreadWidget() {
     const nextTick = useNextTickLayout()
 
     const { chat, snap } = useChatThread()
+    const events = useDi<IEventObserver>(EventBusProvider)
 
     const { contactId } = useParams({ from: "/authed/chat/$contactId" })
 
@@ -30,6 +36,7 @@ export function ChatThreadWidget() {
     const [receiveModalOpen, setReceiveModalOpen] = useState(false)
     const [newMessageText, setNewMessageText] = useState("")
     const sendMessageTextRef = useRef("")
+    const [toast, setToast] = useState<string | null>(null)
 
     const setActiveContactId = useMutation({
         mutationFn: (id: string | null) => chat.setActiveContactId(id),
@@ -55,14 +62,24 @@ export function ChatThreadWidget() {
             return
         }
 
-        chat.clearToast()
+        setToast(null)
 
         sendMessageTextRef.current = sendMessageText
 
         setSendModalOpen(true)
 
         sendNewMessageMutate(sendMessageText)
-    }, [chat, newMessageText, sendNewMessageMutate])
+    }, [newMessageText, sendNewMessageMutate])
+
+    useEffect(() => {
+        const cb = events.on("chatThread:toast", (message: string | null) => {
+            setToast(message)
+        })
+
+        return () => {
+            events.off("chatThread:toast", cb)
+        }
+    }, [events])
 
     useEffect(() => {
         if (!contactId) {
@@ -124,7 +141,7 @@ export function ChatThreadWidget() {
             <ChatThreadHeader
                 chat={chat}
                 onReceiveClick={() => {
-                    chat.clearToast()
+                    setToast(null)
                     setReceiveModalOpen(true)
                 }}
             />
@@ -135,9 +152,9 @@ export function ChatThreadWidget() {
                 listDisabled={snap.isPendingList}
             />
 
-            {snap.toast && (
+            {toast && (
                 <p className="shrink-0 border-b border-border bg-muted/40 px-3 py-2 text-center text-xs text-muted-foreground">
-                    {snap.toast}
+                    {toast}
                 </p>
             )}
 
@@ -158,6 +175,7 @@ export function ChatThreadWidget() {
                 }}
                 chat={chat}
                 encryptedResult={sendNewMessage.data ?? null}
+                onNotify={setToast}
                 isPending={sendNewMessage.isPending}
             />
 
