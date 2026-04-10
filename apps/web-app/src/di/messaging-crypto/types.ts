@@ -30,6 +30,14 @@ export type IMessagingCryptoService = {
     normalizeInboundPayload(
         raw: VisitCardRawPayload,
     ): Promise<ScannedPayloadNormalized>
+    /**
+     * Try contacts (same protocol as normalized payload) until `decryptIncoming` succeeds.
+     * Used when the transport does not identify the sender (e.g. HTTP outbox).
+     */
+    tryResolveInboundContact(
+        raw: VisitCardRawPayload,
+        contacts: ContactPlain[],
+    ): Promise<ScannedPayloadNormalized & { contactId: string } | null>
     decryptOutboundSelf(
         channelPayload: string,
         messageProtocol: CryptoProtocolId,

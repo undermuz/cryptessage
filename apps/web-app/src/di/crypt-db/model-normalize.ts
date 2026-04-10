@@ -27,11 +27,21 @@ export function normalizeMessage(m: MessagePlain): MessagePlain {
 
     const channelPayload = m.channelPayload ?? ""
     const outboundSelfPayload = m.outboundSelfPayload
+    const transportState = m.transportState
+    const transportKind = m.transportKind
+    const transportStatus = m.transportStatus
 
     return {
         ...m,
         cryptoProtocol,
         channelPayload,
         ...(outboundSelfPayload !== undefined ? { outboundSelfPayload } : {}),
+        ...(m.direction === "out"
+            ? {
+                transportState: transportState ?? "sent",
+                ...(transportKind !== undefined ? { transportKind } : {}),
+                ...(transportStatus !== undefined ? { transportStatus } : {}),
+            }
+            : {}),
     }
 }

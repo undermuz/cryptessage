@@ -39,6 +39,8 @@ apps/web-app/     # cryptessage SPA (main application)
 
 Shared Nx libraries under `libs/` are **not** used yet; domain code lives inside `web-app` until extracted in a follow-up task.
 
+**Remote transport specs** (HTTP / WebSocket / WebRTC signaling, secret path + PoW): see [docs/transports/README.md](docs/transports/README.md).
+
 ## Getting started
 
 **Requirements:** Node.js 20+ (matches TanStack Router / toolchain expectations).

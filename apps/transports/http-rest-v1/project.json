@@ -1,0 +1,31 @@
+{
+  "name": "http-rest-v1",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/transports/http-rest-v1/src",
+  "projectType": "application",
+  "targets": {
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit -p apps/transports/http-rest-v1/tsconfig.json",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -p apps/transports/http-rest-v1/tsconfig.json",
+        "cwd": "{workspaceRoot}"
+      },
+      "outputs": ["{workspaceRoot}/apps/transports/http-rest-v1/dist"]
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "node apps/transports/http-rest-v1/dist/main.js",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  }
+}

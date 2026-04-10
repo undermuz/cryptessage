@@ -136,6 +136,10 @@ export class ConversationProvider implements IConversationService {
         return all.find((c) => c.id === id) ?? null
     }
 
+    public async saveContact(c: ContactPlain): Promise<void> {
+        await this.db.saveContact(this.auth.getMasterKey(), c)
+    }
+
     public async deleteContact(id: string): Promise<void> {
         await this.db.deleteContact(this.auth.getMasterKey(), id)
     }
@@ -172,10 +176,35 @@ export class ConversationProvider implements IConversationService {
             channelPayload: bundle.channelStorage,
             outboundSelfPayload: bundle.outboundSelfStorage,
             createdAt: Date.now(),
+            transportState: "sending",
         }
 
         await this.db.saveMessage(key, m)
         return m
+    }
+
+    public async setOutboundTransportState(
+        messageId: string,
+        state: MessagePlain["transportState"],
+        detail?: { kind?: string; status?: number },
+    ): Promise<void> {
+        const key = this.auth.getMasterKey()
+        const existing = await this.db.getMessageById(key, messageId)
+
+        if (!existing || existing.direction !== "out") {
+            return
+        }
+
+        const next: MessagePlain = {
+            ...existing,
+            ...(state ? { transportState: state } : {}),
+            ...(detail?.kind !== undefined ? { transportKind: detail.kind } : {}),
+            ...(detail?.status !== undefined
+                ? { transportStatus: detail.status }
+                : {}),
+        }
+
+        await this.db.saveMessage(key, next)
     }
 
     public async saveInboundPayload(
@@ -184,13 +213,88 @@ export class ConversationProvider implements IConversationService {
         cryptoProtocol: CryptoProtocolId,
     ): Promise<MessagePlain> {
         const key = this.auth.getMasterKey()
+
+        const canonicalBytesForId = (() => {
+            const p = channelPayload.trim()
+
+            // If upstream gives us bytes that are converted to armored OpenPGP text,
+            // the armor may differ (headers, line wrapping) between runs.
+            // Dedup should be based on the stable base64 body inside the armor.
+            if (p.startsWith("-----BEGIN PGP MESSAGE-----")) {
+                const lines = p.split(/\r?\n/)
+                const out: string[] = []
+                let inBody = false
+
+                for (const line of lines) {
+                    if (line.startsWith("-----END PGP MESSAGE-----")) {
+                        break
+                    }
+
+                    if (inBody) {
+                        const t = line.trim()
+                        // Skip CRC24 checksum line (starts with '=')
+                        if (t.length > 0 && !t.startsWith("=")) {
+                            out.push(t)
+                        }
+                        continue
+                    }
+
+                    // Armor body starts after the first empty line following headers.
+                    if (line.trim() === "") {
+                        inBody = true
+                    }
+                }
+
+                if (out.length > 0) {
+                    try {
+                        const b64 = out.join("")
+                        return base64ToBytes(b64)
+                    } catch {
+                        // fall through
+                    }
+                }
+            }
+
+            // Compact ciphertext is stored as base64; hash bytes to be robust
+            // against formatting differences.
+            try {
+                return base64ToBytes(p)
+            } catch {
+                return new TextEncoder().encode(p)
+            }
+        })()
+
+        // Idempotency: the same inbound ciphertext may be observed multiple times
+        // (polling retries, reload, server cursor glitches). Use a stable message id
+        // so repeats overwrite instead of creating duplicates.
+        const stableId = await (async () => {
+            const prefix = new TextEncoder().encode(
+                `${contactId}\nin\n${cryptoProtocol}\n`,
+            )
+            const joined = new Uint8Array(prefix.byteLength + canonicalBytesForId.byteLength)
+            joined.set(prefix, 0)
+            joined.set(canonicalBytesForId, prefix.byteLength)
+            const digest = await crypto.subtle.digest(
+                "SHA-256",
+                joined as BufferSource,
+            )
+            const b64 = bytesToBase64(new Uint8Array(digest))
+            return `in_${b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")}`
+        })()
+
+        const existing = await this.db.getMessageById(key, stableId)
+        const createdAt =
+            existing && existing.contactId === contactId && existing.direction === "in"
+                ? existing.createdAt
+                : Date.now()
+
         const m: MessagePlain = {
-            id: crypto.randomUUID(),
+            id: stableId,
             contactId,
             direction: "in",
             cryptoProtocol,
             channelPayload,
-            createdAt: Date.now(),
+            createdAt,
         }
 
         await this.db.saveMessage(key, m)

@@ -40,7 +40,10 @@ import { invariant } from "@/lib/utils"
 type ChatThreadPromiseEvents = {
     "chatThread:loadContact": void
     "chatThread:decryptImport": void
-    "chatThread:onSendNewMessage": EncryptedOutgoingBundle
+    "chatThread:onSendNewMessage": {
+        bundle: EncryptedOutgoingBundle
+        messageId: string
+    }
     "chatThread:applyImport": boolean
     "chatThread:importByQrClipboard": void
     "chatThread:importByQrFile": void
@@ -217,7 +220,7 @@ export class ChatThreadProvider implements IChatThreadService {
 
     public async onSendNewMessage(
         messageText: string,
-    ): Promise<EncryptedOutgoingBundle> {
+    ): Promise<{ bundle: EncryptedOutgoingBundle; messageId: string }> {
         const { promise } = this.pm.createExclusive(
             "chatThread:onSendNewMessage",
             async (signal) => {
@@ -242,10 +245,11 @@ export class ChatThreadProvider implements IChatThreadService {
                     throw new DOMException("AbortError")
                 }
 
-                await this.conv.saveOutboundBundle(contactId, bundle)
+                const m = await this.conv.saveOutboundBundle(contactId, bundle)
+
                 await this.reload()
 
-                return bundle
+                return { bundle, messageId: m.id }
             },
         )
 

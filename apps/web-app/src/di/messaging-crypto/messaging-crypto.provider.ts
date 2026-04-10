@@ -192,6 +192,32 @@ export class MessagingCryptoProvider implements IMessagingCryptoService {
         return { channelStorage: armored, cryptoProtocol: "openpgp" }
     }
 
+    public async tryResolveInboundContact(
+        raw: VisitCardRawPayload,
+        contacts: ContactPlain[],
+    ): Promise<ScannedPayloadNormalized & { contactId: string } | null> {
+        const normalized = await this.normalizeInboundPayload(raw)
+        const sameProto = contacts.filter(
+            (c) => c.cryptoProtocol === normalized.cryptoProtocol,
+        )
+
+        for (const c of sameProto) {
+            try {
+                await this.decryptIncoming(
+                    c,
+                    normalized.channelStorage,
+                    normalized.cryptoProtocol,
+                )
+
+                return { ...normalized, contactId: c.id }
+            } catch {
+                /* try next contact */
+            }
+        }
+
+        return null
+    }
+
     public async decryptOutboundSelf(
         channelPayload: string,
         messageProtocol: CryptoProtocolId,

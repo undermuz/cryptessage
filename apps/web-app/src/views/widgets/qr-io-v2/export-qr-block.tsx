@@ -182,8 +182,20 @@ export function ExportQrBlock({
             variant="secondary"
         >
             {heading ? (
-                <div className="space-y-0.5">
-                    <h2 className="text-sm font-semibold">{heading}</h2>
+                <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                        <h2 className="text-sm font-semibold">{heading}</h2>
+                    </div>
+                    {onExpandedChange ? (
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onPress={() => onExpandedChange(!expanded)}
+                        >
+                            {expanded ? labels.hideQr : labels.showQr}
+                        </Button>
+                    ) : null}
                 </div>
             ) : null}
 

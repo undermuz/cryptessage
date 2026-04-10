@@ -66,7 +66,9 @@ export type IChatThreadService = {
     reload(): Promise<void>
     loadMore: ChatLoadMoreHandler
     jumpListToBottom(): void
-    onSendNewMessage(plain: string): Promise<EncryptedOutgoingBundle>
+    onSendNewMessage(
+        plain: string,
+    ): Promise<{ bundle: EncryptedOutgoingBundle; messageId: string }>
     importByRaw(armoredText: string): Promise<void>
     /** Resolves `true` when the message was saved */
     applyImport(): Promise<boolean>

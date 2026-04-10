@@ -21,6 +21,8 @@ import { MessagingCryptoModule } from "./messaging-crypto/module"
 import { VaultBackupModule } from "./vault-backup/module"
 import { ConversationModule } from "./conversation/module"
 import { ChatThreadModule } from "./chat-thread/module"
+import { ChatTransportModule } from "./chat-transport/module"
+import { HttpRestV1TransportModule } from "./chat-transport/http-rest/module"
 import { AppModule } from "./app/app.module"
 import { PromiseManagerModule } from "./utils/promise-manager/module"
 
@@ -48,6 +50,8 @@ export const createDiContainer = () => {
     di.load(VaultBackupModule)
     di.load(ConversationModule)
     di.load(ChatThreadModule)
+    di.load(ChatTransportModule)
+    di.load(HttpRestV1TransportModule)
     di.load(AppModule)
     di.load(PromiseManagerModule)
 

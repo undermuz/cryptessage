@@ -6,6 +6,13 @@ import { useNextTickLayout } from "use-next-tick"
 import type { BidirectionalListRef } from "broad-infinite-list/react"
 import { Card, Spinner, Surface } from "@heroui/react"
 
+import { QR_TEXT_TRANSPORT_KIND } from "@/di/chat-transport/constants"
+import {
+    ChatTransportManager,
+    ChatTransportOutgoingStore,
+    type IChatTransportManager,
+    type IChatTransportOutgoingStore,
+} from "@/di/chat-transport/types"
 import { useDi } from "@/di/react/hooks/useDi"
 import { useT } from "@/di/react/hooks/useT"
 import { useChatThread } from "@/di/react/hooks/useChatThread"
@@ -33,6 +40,8 @@ export function ChatThreadWidgetHeroUI() {
     const { chat, snap } = useChatThread()
     const events = useDi<IEventObserver>(EventBusProvider)
     const conv = useDi<IConversationService>(ConversationService)
+    const transportMgr = useDi<IChatTransportManager>(ChatTransportManager)
+    const outgoing = useDi<IChatTransportOutgoingStore>(ChatTransportOutgoingStore)
 
     const { contactId } = useParams({ from: "/authed/chat/$contactId" })
 
@@ -43,11 +52,16 @@ export function ChatThreadWidgetHeroUI() {
     const [sendModalOpen, setSendModalOpen] = useState(false)
     const [receiveModalOpen, setReceiveModalOpen] = useState(false)
     const [newMessageText, setNewMessageText] = useState("")
-    const sendMessageTextRef = useRef("")
     const [toast, setToast] = useState<string | null>(null)
     const [sentPreviewOpen, setSentPreviewOpen] = useState(false)
     const [sentPreviewMessage, setSentPreviewMessage] =
         useState<MessagePlain | null>(null)
+    const [sendModalTransportId, setSendModalTransportId] = useState<
+        string | null
+    >(null)
+    const [previewModalTransportId, setPreviewModalTransportId] = useState<
+        string | null
+    >(null)
 
     const setActiveContactId = useMutation({
         mutationFn: (id: string | null) => chat.setActiveContactId(id),
@@ -55,8 +69,47 @@ export function ChatThreadWidgetHeroUI() {
 
     const sendNewMessage = useMutation({
         mutationFn: (messageText: string) => chat.onSendNewMessage(messageText),
-        onSuccess: () => {
+        onSuccess: async ({ bundle, messageId }) => {
             setNewMessageText("")
+
+            const c = chat.state.contact
+
+            if (c) {
+                try {
+                    const r = await transportMgr.prepareOutgoingForDisplay(
+                        c,
+                        bundle,
+                    )
+
+                    const last = outgoing.state.lastNetworkDelivery
+                    const requiresUserAction =
+                        r.usedKind === QR_TEXT_TRANSPORT_KIND || last === null
+
+                    if (requiresUserAction) {
+                        await conv.setOutboundTransportState(
+                            messageId,
+                            "needs_action",
+                            { kind: r.usedKind },
+                        )
+                        setSendModalTransportId(r.usedInstanceId)
+                        setSendModalOpen(true)
+                    } else {
+                        await conv.setOutboundTransportState(
+                            messageId,
+                            "sent",
+                            { kind: r.usedKind, status: last.status },
+                        )
+                    }
+
+                    await chat.reload()
+                } catch (e) {
+                    const reason = e instanceof Error ? e.message : String(e)
+                    setToast(reason)
+                    await conv.setOutboundTransportState(messageId, "failed")
+                    setSendModalOpen(true)
+                    await chat.reload()
+                }
+            }
         },
         onError: () => {
             setSendModalOpen(false)
@@ -71,8 +124,21 @@ export function ChatThreadWidgetHeroUI() {
 
             return await conv.encryptOutgoingBundle(contactId, plain)
         },
+        onSuccess: async (bundle) => {
+            const c = chat.state.contact
+
+            if (c) {
+                const r = await transportMgr.prepareOutgoingForDisplay(
+                    c,
+                    bundle,
+                )
+
+                setPreviewModalTransportId(r.usedInstanceId)
+            }
+        },
         onError: (e) => {
             const reason = e instanceof Error ? e.message : String(e)
+
             setToast(reason)
         },
     })
@@ -88,18 +154,25 @@ export function ChatThreadWidgetHeroUI() {
         }
 
         setToast(null)
-        sendMessageTextRef.current = sendMessageText
-        setSendModalOpen(true)
         sendNewMessageMutate(sendMessageText)
     }, [newMessageText, sendNewMessageMutate])
 
     useEffect(() => {
-        const cb = events.on("chatThread:toast", (message: string | null) => {
+        const onToast = (message: string | null) => {
             setToast(message)
-        })
+        }
+
+        const onOpenQrReceive = () => {
+            setToast(null)
+            setReceiveModalOpen(true)
+        }
+
+        events.on("chatThread:toast", onToast)
+        events.on("chatTransport:openQrReceive", onOpenQrReceive)
 
         return () => {
-            events.off("chatThread:toast", cb)
+            events.off("chatThread:toast", onToast)
+            events.off("chatTransport:openQrReceive", onOpenQrReceive)
         }
     }, [events])
 
@@ -190,11 +263,6 @@ export function ChatThreadWidgetHeroUI() {
 
                         setToast(null)
 
-                        if (!m.outboundSelfPayload) {
-                            setToast(t("chat.outboundLegacyNoSelfCopy"))
-                            return
-                        }
-
                         if (!item.decrypted) {
                             setToast(t("common.loading"))
                             return
@@ -232,13 +300,16 @@ export function ChatThreadWidgetHeroUI() {
                     setSendModalOpen(nextOpen)
 
                     if (!nextOpen) {
+                        setSendModalTransportId(null)
+                        transportMgr.clearOutgoing()
                         sendNewMessage.reset()
                     }
                 }}
                 chat={chat}
-                encryptedResult={sendNewMessage.data ?? null}
+                encryptedResult={sendNewMessage.data?.bundle ?? null}
                 onNotify={setToast}
                 isPending={sendNewMessage.isPending}
+                initialTransportInstanceId={sendModalTransportId}
             />
 
             {sentPreviewMessage && (
@@ -248,6 +319,8 @@ export function ChatThreadWidgetHeroUI() {
                         setSentPreviewOpen(nextOpen)
 
                         if (!nextOpen) {
+                            setPreviewModalTransportId(null)
+                            transportMgr.clearOutgoing()
                             sentEncryptedResult.reset()
                             setSentPreviewMessage(null)
                         }
@@ -256,6 +329,7 @@ export function ChatThreadWidgetHeroUI() {
                     encryptedResult={sentEncryptedResult.data ?? null}
                     onNotify={setToast}
                     isPending={sentEncryptedResult.isPending}
+                    initialTransportInstanceId={previewModalTransportId}
                 />
             )}
 

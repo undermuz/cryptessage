@@ -1,9 +1,26 @@
+import { useEffect } from "react"
 import { Link, Outlet } from "@tanstack/react-router"
 
+import {
+    HttpRestInboundCoordinator,
+    type IHttpRestInboundCoordinator,
+} from "@/di/chat-transport/http-rest/v1/types"
+import { useDi } from "@/di/react/hooks/useDi"
 import { useT } from "@/di/react/hooks/useT"
 
 export function AuthenticatedShell() {
     const t = useT()
+    const httpInbound = useDi<IHttpRestInboundCoordinator>(
+        HttpRestInboundCoordinator,
+    )
+
+    useEffect(() => {
+        void httpInbound.start()
+
+        return () => {
+            httpInbound.stop()
+        }
+    }, [httpInbound])
 
     const linkCls =
         "text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"

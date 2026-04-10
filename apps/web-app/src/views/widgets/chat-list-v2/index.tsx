@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Link } from "@tanstack/react-router"
-import { MessageCircle } from "lucide-react"
+import { MessageCircle, Trash2 } from "lucide-react"
 
-import { Spinner, Surface } from "@heroui/react"
+import { Button, Spinner, Surface } from "@heroui/react"
 
 import { useT } from "@/di/react/hooks/useT"
 import { useDi } from "@/di/react/hooks/useDi"
@@ -16,6 +16,8 @@ import {
 } from "@/di/identity/types"
 import type { ContactPlain } from "@/di/crypt-db/types-data"
 
+import { DeleteChatConfirmModalHeroUI } from "@/views/widgets/delete-chat-confirm-modal.heroui"
+
 export function ChatListWidgetHeroUI() {
     const t = useT()
     const conv = useDi<IConversationService>(ConversationService)
@@ -23,6 +25,15 @@ export function ChatListWidgetHeroUI() {
 
     const [contacts, setContacts] = useState<ContactPlain[]>([])
     const [loading, setLoading] = useState(true)
+    const [pendingDelete, setPendingDelete] = useState<ContactPlain | null>(
+        null,
+    )
+    const [deleteBusy, setDeleteBusy] = useState(false)
+    const [deleteErr, setDeleteErr] = useState<string | null>(null)
+
+    const reloadContacts = useCallback(async () => {
+        setContacts(await conv.listContacts())
+    }, [conv])
 
     useEffect(() => {
         void (async () => {
@@ -43,12 +54,12 @@ export function ChatListWidgetHeroUI() {
             setLoading(true)
 
             try {
-                setContacts(await conv.listContacts())
+                await reloadContacts()
             } finally {
                 setLoading(false)
             }
         })()
-    }, [conv])
+    }, [reloadContacts])
 
     if (loading) {
         return (
@@ -86,11 +97,14 @@ export function ChatListWidgetHeroUI() {
                 <Surface className="rounded-3xl p-2" variant="secondary">
                     <ul className="divide-y divide-divider">
                         {contacts.map((c) => (
-                            <li key={c.id} className="py-2">
+                            <li
+                                key={c.id}
+                                className="flex items-stretch gap-1 py-2 pr-1"
+                            >
                                 <Link
                                     to="/chat/$contactId"
                                     params={{ contactId: c.id }}
-                                    className="flex items-center justify-between gap-3 rounded-2xl px-3 py-2 transition-colors hover:bg-default-100"
+                                    className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-2xl px-3 py-2 transition-colors hover:bg-default-100"
                                 >
                                     <div className="min-w-0">
                                         <p className="truncate text-sm font-semibold">
@@ -100,15 +114,66 @@ export function ChatListWidgetHeroUI() {
                                             {t("home.openChat")}
                                         </p>
                                     </div>
-                                    <span className="text-xs font-medium text-default-500">
+                                    <span className="shrink-0 text-xs font-medium text-default-500">
                                         →
                                     </span>
                                 </Link>
+                                <Button
+                                    isIconOnly
+                                    variant="ghost"
+                                    size="sm"
+                                    className="shrink-0 self-center"
+                                    aria-label={t("chat.deleteChat")}
+                                    onPress={() => {
+                                        setDeleteErr(null)
+                                        setPendingDelete(c)
+                                    }}
+                                >
+                                    <Trash2 className="size-4 text-danger" />
+                                </Button>
                             </li>
                         ))}
                     </ul>
                 </Surface>
             )}
+
+            {pendingDelete ? (
+                <DeleteChatConfirmModalHeroUI
+                    open
+                    displayName={pendingDelete.displayName}
+                    busy={deleteBusy}
+                    error={deleteErr}
+                    onOpenChange={(next) => {
+                        if (!next) {
+                            setPendingDelete(null)
+                            setDeleteErr(null)
+                        }
+                    }}
+                    onConfirm={async () => {
+                        if (!pendingDelete) {
+                            return
+                        }
+
+                        setDeleteBusy(true)
+                        setDeleteErr(null)
+
+                        try {
+                            await conv.deleteContact(pendingDelete.id)
+                            setPendingDelete(null)
+                            await reloadContacts()
+                        } catch (e) {
+                            const reason =
+                                e instanceof Error ? e.message : String(e)
+
+                            setDeleteErr(
+                                t("chat.deleteChatFailed", { reason }),
+                            )
+                        } finally {
+                            setDeleteBusy(false)
+                        }
+                    }}
+                />
+            ) : null}
         </div>
     )
 }

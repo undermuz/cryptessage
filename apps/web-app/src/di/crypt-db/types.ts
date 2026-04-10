@@ -15,6 +15,7 @@ export type CryptDbService = {
     saveContact(masterKey: CryptoKey, c: ContactPlain): Promise<void>
     deleteContact(masterKey: CryptoKey, id: string): Promise<void>
     listMessages(masterKey: CryptoKey, contactId: string): Promise<MessagePlain[]>
+    getMessageById(masterKey: CryptoKey, id: string): Promise<MessagePlain | null>
     saveMessage(masterKey: CryptoKey, m: MessagePlain): Promise<void>
     exportPlain(masterKey: CryptoKey): Promise<{
         contacts: ContactPlain[]

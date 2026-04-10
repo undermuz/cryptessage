@@ -81,11 +81,6 @@ function toCompactBytes(raw: VisitCardRawPayload): Uint8Array | null {
     }
 }
 
-function firstKey(keys: Set<Key>): string | null {
-    const it = keys.values().next()
-    return it.done ? null : String(it.value)
-}
-
 export function ContactsWidgetHeroUI() {
     const t = useT()
     const conv = useDi<IConversationService>(ConversationService)
@@ -613,7 +608,7 @@ export function ContactsWidgetHeroUI() {
                         {contacts.map((c) => (
                             <li key={c.id} className="py-3">
                                 <Link
-                                    to="/authed/chat/$contactId"
+                                    to="/chat/$contactId"
                                     params={{ contactId: c.id }}
                                     className="group flex items-center justify-between gap-3 rounded-2xl px-3 py-2 transition-colors hover:bg-default-100"
                                 >

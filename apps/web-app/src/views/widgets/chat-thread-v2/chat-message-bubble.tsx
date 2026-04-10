@@ -1,3 +1,5 @@
+import { Check, TriangleAlert } from "lucide-react"
+import { Spinner } from "@heroui/react"
 import { useT } from "@/di/react/hooks/useT"
 import { useSnapshot } from "valtio/react"
 import type { DecryptedMessageItem, IChatThreadService } from "@/di/chat-thread/types"
@@ -8,17 +10,8 @@ function renderBody(
 ) {
     const m = item.message
     const prev = item.decrypted
-    const selfPayload = m.outboundSelfPayload
 
     if (m.direction === "out") {
-        if (!selfPayload) {
-            return (
-                <p className="mt-1 text-xs text-default-500">
-                    {t("chat.outboundLegacyNoSelfCopy")}
-                </p>
-            )
-        }
-
         if (!prev) {
             return (
                 <p className="mt-1 text-xs text-default-500">
@@ -87,6 +80,7 @@ export function ChatMessageBubble({
     useSnapshot(chat.state)
 
     const mine = item.message.direction === "out"
+    const transportState = item.message.transportState
 
     return (
         <div
@@ -100,19 +94,47 @@ export function ChatMessageBubble({
             onClick={mine ? onClick : undefined}
         >
             {renderBody(t, item)}
-            <time
-                className={`mt-1.5 block text-end text-[9px] font-medium uppercase tracking-tight ${
-                    mine
-                        ? "text-accent-foreground/65"
-                        : "text-default-500"
-                }`}
-                dateTime={new Date(item.message.createdAt).toISOString()}
-            >
-                {new Date(item.message.createdAt).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                })}
-            </time>
+            <div className="mt-1.5 flex items-center justify-end gap-1.5">
+                {mine && transportState === "sending" && (
+                    <Spinner
+                        size="sm"
+                        className={mine ? "text-accent-foreground/70" : ""}
+                    />
+                )}
+                {mine && transportState === "sent" && (
+                    <Check
+                        className={`size-3 ${
+                            mine
+                                ? "text-accent-foreground/70"
+                                : "text-default-500"
+                        }`}
+                        aria-label="Sent"
+                    />
+                )}
+                {mine && transportState === "failed" && (
+                    <TriangleAlert
+                        className={`size-3 ${
+                            mine
+                                ? "text-accent-foreground/70"
+                                : "text-danger"
+                        }`}
+                        aria-label="Failed"
+                    />
+                )}
+                <time
+                    className={`block text-end text-[9px] font-medium uppercase tracking-tight ${
+                        mine
+                            ? "text-accent-foreground/65"
+                            : "text-default-500"
+                    }`}
+                    dateTime={new Date(item.message.createdAt).toISOString()}
+                >
+                    {new Date(item.message.createdAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                    })}
+                </time>
+            </div>
         </div>
     )
 }

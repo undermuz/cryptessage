@@ -200,6 +200,24 @@ export class CryptDb implements CryptDbService {
         return out.sort((a, b) => a.createdAt - b.createdAt)
     }
 
+    public async getMessageById(
+        masterKey: CryptoKey,
+        id: string,
+    ): Promise<MessagePlain | null> {
+        await this.open()
+
+        const idb = this.requireDb()
+        const row = await this.txGet<MessageRow>(idb, STORE_MESSAGES, id)
+
+        if (!row) {
+            return null
+        }
+
+        const json = await decryptUtf8(masterKey, row.blob)
+
+        return normalizeMessage(JSON.parse(json) as MessagePlain)
+    }
+
     public async saveMessage(masterKey: CryptoKey, m: MessagePlain): Promise<void> {
         await this.open()
 

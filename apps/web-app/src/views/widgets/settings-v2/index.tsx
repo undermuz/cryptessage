@@ -20,6 +20,8 @@ import {
     type IVaultBackupService,
 } from "@/di/vault-backup/types"
 
+import { SettingsTransportsHeroUI } from "./settings-transports.heroui"
+
 export function SettingsWidgetHeroUI() {
     const t = useT()
     const { preference, setPreference } = useTheme()
@@ -215,6 +217,8 @@ export function SettingsWidgetHeroUI() {
                     <p className="text-sm text-danger">{cryptErr}</p>
                 ) : null}
             </Surface>
+
+            <SettingsTransportsHeroUI />
 
             <Surface className="space-y-3 rounded-3xl p-5" variant="secondary">
                 <h2 className="text-sm font-semibold">{t("settings.fingerprint")}</h2>

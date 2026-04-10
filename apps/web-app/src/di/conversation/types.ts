@@ -15,6 +15,7 @@ export type IConversationService = {
     ): Promise<ContactPlain>
     listContacts(): Promise<ContactPlain[]>
     getContact(id: string): Promise<ContactPlain | null>
+    saveContact(c: ContactPlain): Promise<void>
     deleteContact(id: string): Promise<void>
     encryptOutgoingBundle(
         contactId: string,
@@ -24,6 +25,11 @@ export type IConversationService = {
         contactId: string,
         bundle: EncryptedOutgoingBundle,
     ): Promise<MessagePlain>
+    setOutboundTransportState(
+        messageId: string,
+        state: MessagePlain["transportState"],
+        detail?: { kind?: string; status?: number },
+    ): Promise<void>
     saveInboundPayload(
         contactId: string,
         channelPayload: string,
