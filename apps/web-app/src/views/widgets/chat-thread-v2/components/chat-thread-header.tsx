@@ -71,51 +71,51 @@ export function ChatThreadHeaderHeroUI({
     return (
         <div className="shrink-0 border-b border-divider bg-default-50/95 backdrop-blur-md">
             <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-            <div className="flex min-w-0 items-center gap-3">
-                <div
-                    className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-xs font-bold text-primary-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/10"
-                    aria-hidden
-                >
-                    {initialsFromName(contact.displayName)}
+                <div className="flex min-w-0 items-center gap-3">
+                    <div
+                        className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-xs font-bold text-primary-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                        aria-hidden
+                    >
+                        {initialsFromName(contact.displayName)}
+                    </div>
+                    <div className="min-w-0">
+                        <h1 className="truncate text-[15px] font-semibold leading-tight tracking-tight">
+                            {contact.displayName}
+                        </h1>
+                        <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-default-500">
+                            {contact.cryptoProtocol}
+                        </p>
+                    </div>
                 </div>
-                <div className="min-w-0">
-                    <h1 className="truncate text-[15px] font-semibold leading-tight tracking-tight">
-                        {contact.displayName}
-                    </h1>
-                    <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-default-500">
-                        {contact.cryptoProtocol}
-                    </p>
+                <div className="flex shrink-0 items-center gap-0.5">
+                    <Button
+                        isIconOnly
+                        variant="ghost"
+                        size="sm"
+                        aria-label={t("chat.receiveMessages")}
+                        onPress={onReceiveClick}
+                    >
+                        <Inbox className="size-5" />
+                    </Button>
+                    <Button
+                        isIconOnly
+                        variant="ghost"
+                        size="sm"
+                        aria-label={t("chat.deleteChat")}
+                        onPress={() => {
+                            setDeleteErr(null)
+                            setDeleteOpen(true)
+                        }}
+                    >
+                        <Trash2 className="size-5 text-danger" />
+                    </Button>
+                    <Link
+                        to="/"
+                        className="rounded-lg px-2.5 py-2 text-sm font-medium text-default-600 transition-colors hover:bg-default-100 hover:text-foreground"
+                    >
+                        {t("chat.back")}
+                    </Link>
                 </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-0.5">
-                <Button
-                    isIconOnly
-                    variant="ghost"
-                    size="sm"
-                    aria-label={t("chat.receiveMessages")}
-                    onPress={onReceiveClick}
-                >
-                    <Inbox className="size-5" />
-                </Button>
-                <Button
-                    isIconOnly
-                    variant="ghost"
-                    size="sm"
-                    aria-label={t("chat.deleteChat")}
-                    onPress={() => {
-                        setDeleteErr(null)
-                        setDeleteOpen(true)
-                    }}
-                >
-                    <Trash2 className="size-5 text-danger" />
-                </Button>
-                <Link
-                    to="/"
-                    className="rounded-lg px-2.5 py-2 text-sm font-medium text-default-600 transition-colors hover:bg-default-100 hover:text-foreground"
-                >
-                    {t("chat.back")}
-                </Link>
-            </div>
             </div>
             <div className="flex flex-wrap items-end gap-2 border-t border-divider/60 px-4 py-2">
                 <Input
@@ -126,7 +126,11 @@ export function ChatThreadHeaderHeroUI({
                     variant="secondary"
                     className="min-w-[12rem] max-w-md flex-1"
                 />
-                <Button size="sm" variant="outline" onPress={() => void saveHttpInboxId()}>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    onPress={() => void saveHttpInboxId()}
+                >
                     {t("transport.httpInboxIdSave")}
                 </Button>
             </div>
@@ -152,7 +156,8 @@ export function ChatThreadHeaderHeroUI({
                         setDeleteOpen(false)
                         await navigate({ to: "/" })
                     } catch (e) {
-                        const reason = e instanceof Error ? e.message : String(e)
+                        const reason =
+                            e instanceof Error ? e.message : String(e)
 
                         setDeleteErr(t("chat.deleteChatFailed", { reason }))
                     } finally {
@@ -163,4 +168,3 @@ export function ChatThreadHeaderHeroUI({
         </div>
     )
 }
-

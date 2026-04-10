@@ -36,6 +36,82 @@ npx nx run http-rest-v1:serve
 
 (PowerShell: `$env:DEPLOYMENT_SECRET="devsecret"` then `npx nx run http-rest-v1:serve`.)
 
+## Docker (Linux server)
+
+Build the image from the **monorepo root** (next to `package.json` and `apps/`): the `Dockerfile` copies the lockfile and runs `tsc` against that layout.
+
+### 1. Install Docker
+
+Debian/Ubuntu example:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "${VERSION_CODENAME:-jammy}") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo usermod -aG docker "$USER"
+# log out and back in so the docker group applies
+```
+
+On other distros, see the official [Docker Engine install](https://docs.docker.com/engine/install/) docs.
+
+### 2. Clone the repo and build the image
+
+```bash
+git clone <your-fork-or-upstream-url> cryptessage
+cd cryptessage
+
+docker build -f apps/transports/http-rest-v1/Dockerfile -t cryptessage-http-rest-v1:latest .
+```
+
+The build runs `npm ci --legacy-peer-deps` to tolerate peer-dependency conflicts in the monorepo.
+
+### 3. Run the container
+
+**Required:** `DEPLOYMENT_SECRET` — the same secret as in the client URL: `https://your-host/<DEPLOYMENT_SECRET>/v1`.
+
+```bash
+export DEPLOYMENT_SECRET='use-a-long-random-secret'
+export PORT=3333
+
+docker run -d --name http-rest-v1 \
+  --restart unless-stopped \
+  -p "${PORT}:${PORT}" \
+  -e DEPLOYMENT_SECRET \
+  -e PORT \
+  cryptessage-http-rest-v1:latest
+```
+
+For a shared bearer token, add `-e INBOX_BEARER_TOKEN='…'` and set the same value as `bearerToken` on the client profile.
+
+Smoke check:
+
+```bash
+curl -sS "http://127.0.0.1:${PORT}/${DEPLOYMENT_SECRET}/v1/challenge"
+```
+
+### 4. Production: TLS and port 443
+
+The container serves plain HTTP (default port **3333**). On a public host, put a **reverse proxy** (Caddy, nginx, Traefik) with TLS in front and proxy to `127.0.0.1:3333`. Prefer exposing only 443 (and 80 for ACME) in the firewall; do not publish the app port directly:
+
+```bash
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+```
+
+### Image files
+
+| File | Role |
+| --- | --- |
+| [`Dockerfile`](Dockerfile) | Multi-stage build: `tsc` in builder; runtime image has only `dist/` and minimal dependencies |
+| [`package.runtime.json`](package.runtime.json) | Runtime dependencies (Fastify, Inversify, …). If new `node_modules` imports appear after code changes, align versions with the repo root `package.json` |
+
 ## Client profile (`http_rest_v1`)
 
 Use a `baseUrl` that ends with your deployment segment and `/v1`, for example:
