@@ -14,9 +14,11 @@ import { TimersProvider, type ITimersProvider } from "@/di/utils/timers/types"
 import { extractDeploymentSecretFromBaseUrl } from "./deployment-secret"
 import type { CreateHttpRestOutboxSubscription } from "./http-rest-outbox-subscription"
 import { expandInboxPath } from "./http-rest-paths"
+import { readUnauthorizedErrorCode } from "./pow-http-errors"
 import { HttpRestPowHeadersProvider } from "./pow-headers.provider"
 import type {
     HttpRestParsedConfig,
+    HttpRestPowMode,
     HttpRestSubscribeRuntimeConfig,
 } from "./types"
 
@@ -129,6 +131,62 @@ export class HttpRestTransportProvider implements IChatTransport {
 
         const enablePoll = o.enablePoll !== false
 
+        let powMode: HttpRestPowMode | undefined
+
+        if (o.powMode !== undefined) {
+            if (o.powMode !== "adaptive" && o.powMode !== "always") {
+                throw new Error(
+                    'http_rest_v1: powMode must be "adaptive" or "always"',
+                )
+            }
+
+            powMode = o.powMode
+        }
+
+        let powIdleMsBeforePow: number | undefined
+
+        if (o.powIdleMsBeforePow !== undefined) {
+            if (
+                typeof o.powIdleMsBeforePow !== "number" ||
+                !Number.isFinite(o.powIdleMsBeforePow) ||
+                o.powIdleMsBeforePow < 1000
+            ) {
+                throw new Error(
+                    "http_rest_v1: powIdleMsBeforePow must be a number ≥ 1000",
+                )
+            }
+
+            powIdleMsBeforePow = Math.floor(o.powIdleMsBeforePow)
+        }
+
+        let powMaxRps: number | undefined
+
+        if (o.powMaxRps !== undefined) {
+            if (
+                typeof o.powMaxRps !== "number" ||
+                !Number.isFinite(o.powMaxRps) ||
+                o.powMaxRps < 1
+            ) {
+                throw new Error("http_rest_v1: powMaxRps must be an integer ≥ 1")
+            }
+
+            powMaxRps = Math.floor(o.powMaxRps)
+        }
+
+        let powMaxRpm: number | undefined
+
+        if (o.powMaxRpm !== undefined) {
+            if (
+                typeof o.powMaxRpm !== "number" ||
+                !Number.isFinite(o.powMaxRpm) ||
+                o.powMaxRpm < 1
+            ) {
+                throw new Error("http_rest_v1: powMaxRpm must be an integer ≥ 1")
+            }
+
+            powMaxRpm = Math.floor(o.powMaxRpm)
+        }
+
         return {
             baseUrl,
             bearerToken:
@@ -142,6 +200,10 @@ export class HttpRestTransportProvider implements IChatTransport {
             timeoutMs,
             skipPow,
             enablePoll,
+            powMode,
+            powIdleMsBeforePow,
+            powMaxRps,
+            powMaxRpm,
         }
     }
 
@@ -174,33 +236,49 @@ export class HttpRestTransportProvider implements IChatTransport {
         }, cfg.timeoutMs)
 
         try {
-            const headers: Record<string, string> = {
-                "Content-Type": "application/octet-stream",
+            const postOnce = async () => {
+                const headers: Record<string, string> = {
+                    "Content-Type": "application/octet-stream",
+                }
+
+                if (cfg.bearerToken) {
+                    headers.Authorization = `Bearer ${cfg.bearerToken}`
+                }
+
+                Object.assign(
+                    headers,
+                    await this.powHeaders.buildPowHeaders(cfg, ac.signal),
+                )
+
+                return fetch(url, {
+                    method: "POST",
+                    headers,
+                    body: payload as BufferSource,
+                    signal: ac.signal,
+                })
             }
 
-            if (cfg.bearerToken) {
-                headers.Authorization = `Bearer ${cfg.bearerToken}`
+            let postRes = await postOnce()
+
+            if (postRes.status === 401 && !cfg.skipPow) {
+                const code = await readUnauthorizedErrorCode(postRes)
+
+                if (
+                    code === "pow_required" ||
+                    code === "session_invalid" ||
+                    code === "pow_challenge_invalid" ||
+                    code === "pow_invalid"
+                ) {
+                    this.powHeaders.onAuthFailure(cfg)
+                    postRes = await postOnce()
+                }
             }
-
-            Object.assign(
-                headers,
-                await this.powHeaders.buildPowHeaders(
-                    cfg.baseUrl,
-                    cfg.skipPow,
-                    ac.signal,
-                ),
-            )
-
-            const postRes = await fetch(url, {
-                method: "POST",
-                headers,
-                body: payload as BufferSource,
-                signal: ac.signal,
-            })
 
             if (!postRes.ok) {
                 throw new Error(`http_rest_v1: inbox HTTP ${postRes.status}`)
             }
+
+            this.powHeaders.onSuccessfulResponse(cfg, postRes)
 
             this.outgoing.setLastNetworkDelivery({
                 kind: HTTP_REST_V1_TRANSPORT_KIND,

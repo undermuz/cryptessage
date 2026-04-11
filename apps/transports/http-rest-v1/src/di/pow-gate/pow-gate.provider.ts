@@ -4,9 +4,10 @@ import { inject, injectable } from "inversify"
 
 import { ChallengeStore, type IChallengeStore } from "../challenge-store/types.js"
 import { LocalHostRequest, type ILocalHostRequest } from "../local-host-request/types.js"
+import { PowSession, type IPowSessionService } from "../pow-session/types.js"
 import { PowVerification, type IPowVerification } from "../pow-verification/types.js"
 import { ServerConfig, type ServerEnv } from "../server-config/types.js"
-import type { IPowGate } from "./types.js"
+import type { IPowGate, PowGateSuccess } from "./types.js"
 
 @injectable()
 export class PowGateProvider implements IPowGate {
@@ -15,19 +16,49 @@ export class PowGateProvider implements IPowGate {
         @inject(ChallengeStore) private readonly challenges: IChallengeStore,
         @inject(PowVerification) private readonly pow: IPowVerification,
         @inject(LocalHostRequest) private readonly localHost: ILocalHostRequest,
+        @inject(PowSession) private readonly sessions: IPowSessionService,
     ) {}
 
     public verifyForRequest(
         req: FastifyRequest,
         powHeader: string | undefined,
-    ): UnauthorizedHttpResponse | null {
+        sessionHeader: string | undefined,
+    ): UnauthorizedHttpResponse | PowGateSuccess {
         const skipPowAllowed =
             this.config.skipPow && this.localHost.isLocalHost(req)
 
         if (skipPowAllowed) {
-            return null
+            return { kind: "skip" }
         }
 
+        if (this.config.powMode === "always") {
+            return this.verifyPowOnly(powHeader)
+        }
+
+        const proof = this.pow.parseHeader(powHeader)
+
+        if (proof) {
+            return this.verifyPowOnly(powHeader)
+        }
+
+        const sess = sessionHeader?.trim()
+
+        if (sess) {
+            const next = this.sessions.rotateAfterSessionAuth(sess)
+
+            if (next) {
+                return { kind: "session", sessionHeader: next }
+            }
+
+            return new UnauthorizedHttpResponse({ error: "session_invalid" })
+        }
+
+        return new UnauthorizedHttpResponse({ error: "pow_required" })
+    }
+
+    private verifyPowOnly(
+        powHeader: string | undefined,
+    ): UnauthorizedHttpResponse | PowGateSuccess {
         const proof = this.pow.parseHeader(powHeader)
 
         if (!proof) {
@@ -52,6 +83,6 @@ export class PowGateProvider implements IPowGate {
             return new UnauthorizedHttpResponse({ error: "pow_invalid" })
         }
 
-        return null
+        return { kind: "pow" }
     }
 }

@@ -29,6 +29,17 @@ export type IHttpRestInboundCoordinator = {
     refreshManualHttpInboxes(): Promise<void>
 }
 
+/** `http_rest_v1` PoW policy modes (mirrors server `clientHints.powMode`). */
+export type HttpRestPowMode = "adaptive" | "always"
+
+/** Optional hints from GET `/challenge` (ignored by PoW preimage). */
+export type PowClientHints = {
+    powMode: HttpRestPowMode
+    idleMsBeforePow: number
+    maxRps: number
+    maxRpm: number
+}
+
 /** Server-issued challenge for `sha256-pow-v1` (GET `/challenge` JSON body). */
 export type PowChallenge = {
     /** Must be `sha256-pow-v1` for the solver in `pow-sha256-pow-v1.ts`. */
@@ -39,6 +50,8 @@ export type PowChallenge = {
     difficultyBits: number
     /** ISO timestamp; client rejects expired challenges before grinding. */
     expiresAt: string
+    /** Server policy for adaptive PoW / rate hints (optional; older servers omit). */
+    clientHints?: PowClientHints
 }
 
 /**
@@ -64,6 +77,16 @@ export type HttpRestParsedConfig = {
      * Skip PoW challenge/proof (allowed only for local/private base URLs such as localhost).
      */
     skipPow: boolean
+    /**
+     * When set, overrides server `clientHints.powMode` until the next challenge refresh.
+     */
+    powMode?: HttpRestPowMode
+    /** Override server `idleMsBeforePow` (ms). */
+    powIdleMsBeforePow?: number
+    /** Override rolling1s request cap (client + server). */
+    powMaxRps?: number
+    /** Override rolling 60s request cap (client + server). */
+    powMaxRpm?: number
     /**
      * When `false`, the app does not start an outbox poll interval for this profile; use
      * {@link IHttpRestInboundCoordinator.refreshManualHttpInboxes} from the chat UI instead.

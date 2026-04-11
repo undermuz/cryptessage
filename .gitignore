@@ -44,3 +44,6 @@ Thumbs.db
 .claude/settings.local.json
 
 vite.config.*.timestamp*
+
+# http-rest-v1 local env (see apps/transports/http-rest-v1/env.example)
+apps/transports/http-rest-v1/.env

@@ -1,4 +1,4 @@
-import type { CorsOriginSetting, ServerEnv } from "./types.js"
+import type { CorsOriginSetting, PowMode, ServerEnv } from "./types.js"
 
 function envBool(name: string, defaultValue: boolean): boolean {
     const v = process.env[name]
@@ -39,6 +39,50 @@ function parseCorsOrigin(): CorsOriginSetting {
     }
 
     return raw
+}
+
+function envPowMode(): PowMode {
+    const v = process.env.POW_MODE?.trim().toLowerCase()
+
+    if (v === "always") {
+        return "always"
+    }
+
+    return "adaptive"
+}
+
+function envPositiveInt(name: string, defaultValue: number): number {
+    const raw = process.env[name]?.trim()
+    const n = raw !== undefined ? Number(raw) : defaultValue
+
+    if (!Number.isFinite(n) || n < 1) {
+        throw new Error(`${name} must be a positive integer`)
+    }
+
+    return Math.floor(n)
+}
+
+/**
+ * Session tokens must not be keyed from `DEPLOYMENT_SECRET`: clients embed that
+ * value in `baseUrl`, so anyone with the link could forge `X-Cryptessage-Session`.
+ */
+function resolveSessionHmacSecret(powMode: PowMode): string {
+    const explicit = process.env.SESSION_HMAC_SECRET?.trim()
+
+    if (powMode === "always") {
+        return explicit && explicit.length > 0
+            ? explicit
+            : "__pow_always_mode_session_signing_unused__"
+    }
+
+    if (!explicit || explicit.length === 0) {
+        throw new Error(
+            "SESSION_HMAC_SECRET is required when POW_MODE=adaptive (default). " +
+                "Set a long random server-only value; do not reuse DEPLOYMENT_SECRET — it appears in every client baseUrl.",
+        )
+    }
+
+    return explicit
 }
 
 export function loadServerEnv(): ServerEnv {
@@ -82,6 +126,19 @@ export function loadServerEnv(): ServerEnv {
         )
     }
 
+    const powIdleMsBeforePow = envPositiveInt(
+        "POW_IDLE_MS_BEFORE_POW",
+        30 * 60 * 1000,
+    )
+    const powMaxRps = envPositiveInt("POW_MAX_RPS", 5)
+    const powMaxRpm = envPositiveInt("POW_MAX_RPM", 350)
+    const sessionMaxTtlMs = envPositiveInt(
+        "SESSION_MAX_TTL_MS",
+        24 * 60 * 60 * 1000,
+    )
+
+    const powMode = envPowMode()
+
     return {
         port,
         deploymentSecret: secret,
@@ -90,5 +147,11 @@ export function loadServerEnv(): ServerEnv {
         skipPow,
         outboxPageSize,
         corsOrigin: parseCorsOrigin(),
+        powMode,
+        powIdleMsBeforePow,
+        powMaxRps,
+        powMaxRpm,
+        sessionHmacSecret: resolveSessionHmacSecret(powMode),
+        sessionMaxTtlMs,
     }
 }

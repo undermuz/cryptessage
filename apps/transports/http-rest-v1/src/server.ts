@@ -25,8 +25,10 @@ export async function buildHttpRestV1Server(
             "Authorization",
             "Content-Type",
             "X-Cryptessage-Pow",
+            "X-Cryptessage-Session",
             "Idempotency-Key",
         ],
+        exposedHeaders: ["X-Cryptessage-Session"],
     })
 
     app.addContentTypeParser(

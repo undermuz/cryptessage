@@ -7,6 +7,7 @@ import {
     HttpRestOutboxSubscription,
     type CreateHttpRestOutboxSubscription,
 } from "./http-rest-outbox-subscription"
+import { HttpRestPowCoordinatorProvider } from "./pow-coordinator.provider"
 import { HttpRestPowHeadersProvider } from "./pow-headers.provider"
 import { HttpRestTransportProvider } from "./transport.provider"
 import {
@@ -19,6 +20,7 @@ import {
  * and {@link HttpRestInboundCoordinatorProvider} as {@link IHttpRestInboundCoordinator}.
  */
 export const HttpRestV1TransportModule = new ContainerModule((ctx) => {
+    ctx.bind(HttpRestPowCoordinatorProvider).toSelf().inSingletonScope()
     ctx.bind(HttpRestPowHeadersProvider).toSelf().inSingletonScope()
 
     ctx.bind(HttpRestOutboxSubscription).toSelf().inTransientScope()

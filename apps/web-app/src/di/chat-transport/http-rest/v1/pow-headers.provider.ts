@@ -1,58 +1,40 @@
-import { injectable } from "inversify"
+import { inject, injectable } from "inversify"
 
-import { extractDeploymentSecretFromBaseUrl } from "./deployment-secret"
-import { buildPowProofFromChallenge, solveSha256PowV1 } from "./pow-sha256-pow"
-import type { PowChallenge } from "./types"
+import { HttpRestPowCoordinatorProvider } from "./pow-coordinator.provider"
+import type { HttpRestParsedConfig } from "./types"
 
-/** Challenge fetch + PoW header builder shared by inbox POST and outbox GET. */
+/** Challenge / session headers for inbox POST and outbox GET. */
 export type IHttpRestPowHeadersService = {
     buildPowHeaders(
-        baseUrl: string,
-        skipPow: boolean,
+        cfg: HttpRestParsedConfig,
         signal: AbortSignal,
     ): Promise<Record<string, string>>
+    onSuccessfulResponse(cfg: HttpRestParsedConfig, response: Response): void
+    onAuthFailure(cfg: HttpRestParsedConfig): void
 }
 
 @injectable()
 export class HttpRestPowHeadersProvider implements IHttpRestPowHeadersService {
-    /**
-     * Fetches `/challenge`, solves PoW when needed, returns headers including `X-Cryptessage-Pow`.
-     */
-    public async buildPowHeaders(
-        baseUrl: string,
-        skipPow: boolean,
+    constructor(
+        @inject(HttpRestPowCoordinatorProvider)
+        private readonly coordinator: HttpRestPowCoordinatorProvider,
+    ) {}
+
+    public buildPowHeaders(
+        cfg: HttpRestParsedConfig,
         signal: AbortSignal,
     ): Promise<Record<string, string>> {
-        const headers: Record<string, string> = {}
+        return this.coordinator.buildAuthHeaders(cfg, signal)
+    }
 
-        if (skipPow) {
-            return headers
-        }
+    public onSuccessfulResponse(
+        cfg: HttpRestParsedConfig,
+        response: Response,
+    ): void {
+        this.coordinator.onSuccessfulResponse(cfg, response)
+    }
 
-        const depSecret = extractDeploymentSecretFromBaseUrl(baseUrl)
-        const chRes = await fetch(`${baseUrl}/challenge`, {
-            method: "GET",
-            signal,
-        })
-
-        if (!chRes.ok) {
-            throw new Error(`http_rest_v1: challenge HTTP ${chRes.status}`)
-        }
-
-        const challenge = (await chRes.json()) as PowChallenge
-        const expires = Date.parse(challenge.expiresAt)
-
-        if (Number.isFinite(expires) && Date.now() > expires) {
-            throw new Error("http_rest_v1: challenge expired")
-        }
-
-        const { counter } = await solveSha256PowV1(challenge, depSecret)
-
-        headers["X-Cryptessage-Pow"] = buildPowProofFromChallenge(
-            challenge,
-            counter,
-        )
-
-        return headers
+    public onAuthFailure(cfg: HttpRestParsedConfig): void {
+        this.coordinator.onAuthFailure(cfg)
     }
 }

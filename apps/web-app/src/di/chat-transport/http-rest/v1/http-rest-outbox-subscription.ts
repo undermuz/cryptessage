@@ -16,6 +16,7 @@ import { TimersProvider, type ITimersProvider } from "@/di/utils/timers/types"
 
 import { extractDeploymentSecretFromBaseUrl } from "./deployment-secret"
 import { expandOutboxPath } from "./http-rest-paths"
+import { readUnauthorizedErrorCode } from "./pow-http-errors"
 import { HttpRestPowHeadersProvider } from "./pow-headers.provider"
 import type {
     HttpRestSubscribeRuntimeConfig,
@@ -204,11 +205,7 @@ export class HttpRestOutboxSubscription {
 
         Object.assign(
             headers,
-            await this.powHeaders.buildPowHeaders(
-                this.cfg.baseUrl,
-                this.cfg.skipPow,
-                fetchSignal,
-            ),
+            await this.powHeaders.buildPowHeaders(this.cfg, fetchSignal),
         )
 
         return headers
@@ -235,17 +232,37 @@ export class HttpRestOutboxSubscription {
             pollSignal.addEventListener("abort", onPollAbort)
 
             try {
-                const headers = await this.buildOutboxFetchHeaders(ac.signal)
                 const q =
                     sinceParam.length > 0
                         ? `?since=${encodeURIComponent(sinceParam)}`
                         : ""
                 const url = `${this.cfg.baseUrl}${basePath}${q}`
-                const res = await fetch(url, {
-                    method: "GET",
-                    headers,
-                    signal: ac.signal,
-                })
+
+                const fetchOnce = async () => {
+                    const headers = await this.buildOutboxFetchHeaders(ac.signal)
+
+                    return fetch(url, {
+                        method: "GET",
+                        headers,
+                        signal: ac.signal,
+                    })
+                }
+
+                let res = await fetchOnce()
+
+                if (res.status === 401 && !this.cfg.skipPow) {
+                    const code = await readUnauthorizedErrorCode(res)
+
+                    if (
+                        code === "pow_required" ||
+                        code === "session_invalid" ||
+                        code === "pow_challenge_invalid" ||
+                        code === "pow_invalid"
+                    ) {
+                        this.powHeaders.onAuthFailure(this.cfg)
+                        res = await fetchOnce()
+                    }
+                }
 
                 if (!res.ok) {
                     this.log.debug(
@@ -258,6 +275,8 @@ export class HttpRestOutboxSubscription {
 
                     throw new Error(`http_rest_v1: outbox HTTP ${res.status}`)
                 }
+
+                this.powHeaders.onSuccessfulResponse(this.cfg, res)
 
                 this.log.trace(
                     "Outbox GET ok: instanceId={instanceId} status={status}",

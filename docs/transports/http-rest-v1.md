@@ -13,12 +13,18 @@ REST API over HTTPS for **posting** opaque binary messages to a recipient **inbo
   "outboxPathTemplate": "/outbox/{selfKeyId}",
   "pollIntervalMs": 10000,
   "timeoutMs": 15000,
-  "skipPow": false
+  "skipPow": false,
+  "powMode": "adaptive",
+  "powIdleMsBeforePow": 1800000,
+  "powMaxRps": 5,
+  "powMaxRpm": 350
 }
 ```
 
 - **`baseUrl`**: no trailing slash required; must include `/<deployment_secret>/v1` as the path suffix. The cryptessage client derives PoW material from the segment before `v1` (see [security.md](security.md)).
 - **`skipPow`**: if `true`, the client omits the PoW header. **Only allowed** when `baseUrl` uses hostname `localhost`, `127.0.0.1`, or `[::1]`, and the server runs with dev mode that skips verification (see security.md).
+- **`powMode`** (optional): `"adaptive"` (default) or `"always"`. Overrides server `clientHints.powMode` until the next challenge refresh. Use `"always"` for strict “PoW every request” client behavior even against an adaptive server.
+- **`powIdleMsBeforePow`**, **`powMaxRps`**, **`powMaxRpm`** (optional): override adaptive policy locally (defaults match typical server hints: 30 minutes idle, 5 req/s, 350 req/min rolling). Omit these to follow the server’s `clientHints` from `GET /challenge`.
 - **`outboxSelfKeyId`**: opaque id for **your** mailbox on this `baseUrl` (same meaning as `selfKeyId` in the outbox URL). When set, the client can poll `GET …/outbox/{selfKeyId}` and receive incoming frames. Omitted or empty disables HTTP polling for that profile.
 - **`outboxPathTemplate`**: path template with `{selfKeyId}` (URL-encoded), default `"/outbox/{selfKeyId}"`, symmetric to `inboxPathTemplate`.
 - **`pollIntervalMs`**: how often to poll when receiving is enabled; default `10000`, clamped to `1000`–`60000`.
@@ -27,14 +33,20 @@ REST API over HTTPS for **posting** opaque binary messages to a recipient **inbo
 
 ## Endpoints
 
-All requests MUST send:
+Protected requests (inbox POST, outbox GET) MUST send **either**:
 
-- `X-Cryptessage-Pow` (see security.md), unless both client and server use the documented **local/dev** exception.
-- `Authorization: Bearer …` if configured.
+- `X-Cryptessage-Pow` (see [security.md](security.md)), **or**
+- `X-Cryptessage-Session` (when the server runs in adaptive mode and the client holds a valid session from a prior successful PoW),
+
+unless both client and server use the documented **local/dev** `SKIP_POW` exception.
+
+Also send `Authorization: Bearer …` when configured.
+
+Successful responses MAY include `X-Cryptessage-Session` (adaptive mode) for the client to reuse. Browsers need CORS **`Access-Control-Expose-Headers`** to read this header from `fetch` (the reference server exposes it).
 
 ### Challenge
 
-`GET {baseUrl}/challenge` → challenge JSON.
+`GET {baseUrl}/challenge` → challenge JSON (see [security.md](security.md)), optionally including `clientHints` for adaptive PoW policy.
 
 ### Push message
 

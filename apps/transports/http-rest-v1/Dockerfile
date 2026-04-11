@@ -1,7 +1,7 @@
 # Build from the monorepo root (parent of `apps/`):
 #   docker build -f apps/transports/http-rest-v1/Dockerfile -t cryptessage-http-rest-v1:latest .
 #
-# Required at runtime: DEPLOYMENT_SECRET (and optional vars from README).
+# Runtime: pass variables via docker --env-file (see README + env.example).
 
 # --- compile TypeScript (needs root devDependencies: typescript) ---
 FROM node:22-bookworm-slim AS build

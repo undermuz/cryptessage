@@ -23,7 +23,8 @@ import { HttpRequestAuth, type IHttpRequestAuth } from "../http-request-auth/typ
 import { IdempotencyStore, type IIdempotencyStore } from "../idempotency-store/types.js"
 import { InMemoryService, type IInMemoryService } from "../in-memory/types.js"
 import { OutboxCursor, type IOutboxCursor } from "../outbox-cursor/types.js"
-import { PowGate, type IPowGate } from "../pow-gate/types.js"
+import { PowGate, type IPowGate, type PowGateSuccess } from "../pow-gate/types.js"
+import { PowSession, type IPowSessionService } from "../pow-session/types.js"
 import { ServerConfig, type ServerEnv } from "../server-config/types.js"
 import { IDEMPOTENCY_KEY_MAX_LEN } from "./types.js"
 
@@ -44,8 +45,27 @@ export class InboxController {
         @inject(IdempotencyStore) private readonly idempotency: IIdempotencyStore,
         @inject(OutboxCursor) private readonly outboxCursor: IOutboxCursor,
         @inject(PowGate) private readonly powGate: IPowGate,
+        @inject(PowSession) private readonly powSession: IPowSessionService,
         @inject(HttpRequestAuth) private readonly httpAuth: IHttpRequestAuth,
     ) {}
+
+    private sessionHeadersFromGate(gate: PowGateSuccess): Record<string, string> {
+        if (gate.kind === "skip") {
+            return {}
+        }
+
+        if (this.config.powMode === "always") {
+            return {}
+        }
+
+        if (gate.kind === "pow") {
+            return {
+                "X-Cryptessage-Session": this.powSession.issueAfterPow(),
+            }
+        }
+
+        return { "X-Cryptessage-Session": gate.sessionHeader }
+    }
 
     @Get("/:deploymentSecret/v1/challenge")
     challenge(
@@ -56,6 +76,12 @@ export class InboxController {
         nonce: string
         difficultyBits: number
         expiresAt: string
+        clientHints: {
+            powMode: ServerEnv["powMode"]
+            idleMsBeforePow: number
+            maxRps: number
+            maxRpm: number
+        }
     } | UnauthorizedHttpResponse {
         if (
             !this.httpAuth.assertDeploymentSecret(
@@ -82,6 +108,12 @@ export class InboxController {
             nonce,
             difficultyBits,
             expiresAt,
+            clientHints: {
+                powMode: this.config.powMode,
+                idleMsBeforePow: this.config.powIdleMsBeforePow,
+                maxRps: this.config.powMaxRps,
+                maxRpm: this.config.powMaxRpm,
+            },
         }
     }
 
@@ -91,6 +123,9 @@ export class InboxController {
         @Params({ name: "selfKeyId" }) selfKeyId: string,
         @Query({ name: "since" }) since: string | undefined,
         @Headers({ name: "x-cryptessage-pow" }) powHeader: string | undefined,
+        @Headers({ name: "x-cryptessage-session" }) sessionHeader:
+            | string
+            | undefined,
         @Request() req: FastifyRequest,
     ):
         | OkHttpResponse
@@ -109,10 +144,10 @@ export class InboxController {
             return new UnauthorizedHttpResponse({ error: "unauthorized" })
         }
 
-        const powErr = this.powGate.verifyForRequest(req, powHeader)
+        const gate = this.powGate.verifyForRequest(req, powHeader, sessionHeader)
 
-        if (powErr) {
-            return powErr
+        if (gate instanceof UnauthorizedHttpResponse) {
+            return gate
         }
 
         if (!selfKeyId?.trim()) {
@@ -139,10 +174,12 @@ export class InboxController {
                 ? this.outboxCursor.encode(page.lastSeqInPage)
                 : null
 
-        return new OkHttpResponse(
-            { nextCursor, messages },
-            { "content-type": "application/json; charset=utf-8" },
-        )
+        const resHeaders: Record<string, string> = {
+            "content-type": "application/json; charset=utf-8",
+            ...this.sessionHeadersFromGate(gate),
+        }
+
+        return new OkHttpResponse({ nextCursor, messages }, resHeaders)
     }
 
     @Post("/:deploymentSecret/v1/inbox/:recipientKeyId")
@@ -150,6 +187,9 @@ export class InboxController {
         @Params({ name: "deploymentSecret" }) deploymentSecret: string,
         @Params({ name: "recipientKeyId" }) recipientKeyId: string,
         @Headers({ name: "x-cryptessage-pow" }) powHeader: string | undefined,
+        @Headers({ name: "x-cryptessage-session" }) sessionHeader:
+            | string
+            | undefined,
         @Headers({ name: "idempotency-key" }) idempotencyHeader: string | undefined,
         @Request() req: FastifyRequest,
         @Body() body: unknown,
@@ -193,10 +233,10 @@ export class InboxController {
             return new AcceptedHttpResponse({ ok: true, deduplicated: true })
         }
 
-        const powErr = this.powGate.verifyForRequest(req, powHeader)
+        const gate = this.powGate.verifyForRequest(req, powHeader, sessionHeader)
 
-        if (powErr) {
-            return powErr
+        if (gate instanceof UnauthorizedHttpResponse) {
+            return gate
         }
 
         const buf = normalizeBody(body)
@@ -221,7 +261,12 @@ export class InboxController {
             this.idempotency.rememberKey(idemKey)
         }
 
-        return new AcceptedHttpResponse({ ok: true })
+        const resHeaders = this.sessionHeadersFromGate(gate)
+
+        return new AcceptedHttpResponse(
+            { ok: true },
+            Object.keys(resHeaders).length > 0 ? resHeaders : undefined,
+        )
     }
 }
 

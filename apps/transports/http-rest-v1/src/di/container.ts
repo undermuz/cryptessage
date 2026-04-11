@@ -8,6 +8,7 @@ import { InMemoryModule } from "./in-memory/module.js"
 import { LocalHostRequestModule } from "./local-host-request/module.js"
 import { OutboxCursorModule } from "./outbox-cursor/module.js"
 import { PowGateModule } from "./pow-gate/module.js"
+import { PowSessionModule } from "./pow-session/module.js"
 import { PowVerificationModule } from "./pow-verification/module.js"
 import { createServerConfigModule } from "./server-config/module.js"
 import type { ServerEnv } from "./server-config/types.js"
@@ -22,6 +23,7 @@ export function createHttpRestV1Container(config: ServerEnv): Container {
     di.load(PowVerificationModule)
     di.load(OutboxCursorModule)
     di.load(LocalHostRequestModule)
+    di.load(PowSessionModule)
     di.load(PowGateModule)
     di.load(HttpRequestAuthModule)
     di.load(InboxModule)

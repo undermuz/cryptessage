@@ -41,9 +41,17 @@ Raise the cost of **automated** abuse before expensive work (storage, relay, DB 
   "algorithm": "sha256-pow-v1",
   "nonce": "<base64url>",
   "difficultyBits": 18,
-  "expiresAt": "2026-04-09T19:00:00Z"
+  "expiresAt": "2026-04-09T19:00:00Z",
+  "clientHints": {
+    "powMode": "adaptive",
+    "idleMsBeforePow": 1800000,
+    "maxRps": 5,
+    "maxRpm": 350
+  }
 }
 ```
+
+`clientHints` is **optional** metadata for clients (ignored when computing the PoW preimage). When present, it describes the server’s default policy so the client can align local rate/idleness logic without hard-coding. Clients MAY override hints via transport profile JSON (see `http-rest-v1.md`).
 
 ### Solution
 
@@ -65,15 +73,27 @@ has at least `difficultyBits` leading zero bits (big-endian bit order of the dig
 }
 ```
 
-Header on subsequent requests:
+Header on protected requests (inbox POST, outbox GET, etc.):
 
 `X-Cryptessage-Pow: <base64url of utf8(JSON)>`
+
+### Adaptive sessions (recommended)
+
+To avoid solving PoW on every request, a server MAY run in **`adaptive`** mode (default in the reference `http-rest-v1` server):
+
+1. The first successful request that presented a valid `X-Cryptessage-Pow` receives a signed **`X-Cryptessage-Session`** on the response.
+2. Subsequent requests MAY send **`X-Cryptessage-Session`** instead of `X-Cryptessage-Pow` while the session is valid:
+   - **Sliding idle**: if no request on that session for longer than `idleMsBeforePow` (default 30 minutes), the next request must present a fresh PoW again.
+   - **Rate limits** (per session, server-enforced): rolling **1s** window `maxRps` (default 5) and rolling **60s** window `maxRpm` (default 350). Exceeding either invalidates the session; the client must obtain a new challenge and solve PoW again.
+3. In **`always`** mode, the server does not issue sessions; every protected request must include `X-Cryptessage-Pow` (one challenge consumed per verified proof).
+
+Session tokens are **opaque HMAC-signed blobs** (implementation-specific). Clients should treat them as bearer material for that deployment only.
+
+Reference server environment variables (subset): `POW_MODE` (`adaptive`|`always`), `POW_IDLE_MS_BEFORE_POW`, `POW_MAX_RPS`, `POW_MAX_RPM`, `SESSION_HMAC_SECRET` (**required** for `adaptive` — must be a server-only random secret; never reuse the deployment path segment, which clients already know from `baseUrl`), `SESSION_MAX_TTL_MS`.
 
 ### Local / dev mode (unsafe)
 
 For **localhost only**, a server MAY accept requests **without** `X-Cryptessage-Pow` when `SKIP_POW=true` (or equivalent). This must **never** be enabled on a public deployment. Reference servers document this explicitly.
-
-Servers **should** bind PoW to a short-lived session token after first verify to avoid replay (optional in minimal servers).
 
 ### Shared secret (bearer or HMAC) — optional layer
 
@@ -85,7 +105,7 @@ documented per transport. Servers should reject missing/invalid tokens with **40
 
 ## 3. Error semantics
 
-- **401** — secret path wrong, bearer wrong, or challenge missing/invalid.
+- **401** — secret path wrong, bearer wrong, PoW missing/invalid (`pow_required`, `pow_invalid`, `pow_challenge_invalid`), or session invalid/expired/rate-limited (`session_invalid`). JSON body typically `{ "error": "<code>" }`.
 - **429** — rate limited (retry with backoff).
 - **400** — malformed payload or proof.
 
