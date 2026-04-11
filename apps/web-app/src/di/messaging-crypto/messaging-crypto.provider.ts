@@ -203,13 +203,17 @@ export class MessagingCryptoProvider implements IMessagingCryptoService {
 
         for (const c of sameProto) {
             try {
-                await this.decryptIncoming(
+                const r = await this.decryptIncoming(
                     c,
                     normalized.channelStorage,
                     normalized.cryptoProtocol,
                 )
 
-                return { ...normalized, contactId: c.id }
+                // Decryption alone is not enough: ciphertext is for our key, so the wrong
+                // contact's signing key still yields plaintext but invalid signature.
+                if (r.signaturesValid) {
+                    return { ...normalized, contactId: c.id }
+                }
             } catch {
                 /* try next contact */
             }

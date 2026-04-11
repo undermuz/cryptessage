@@ -83,17 +83,44 @@ export class TransportPrefsProvider implements ITransportPrefsService {
     }
 
     /**
-     * Encrypts and writes prefs. Merges `httpRestOutboxCursorByInstanceId` with values already
-     * on disk so concurrent cursor updates are not dropped when saving profile-only payloads.
+     * Encrypts and writes prefs. Merges `httpRestOutboxCursorByInstanceId`: **disk first, then
+     * prefs**, so explicit cursor updates in `prefs` win over the re-read from disk, while
+     * profile-only saves (no cursor map in `prefs`) keep existing cursors from disk.
      *
      * @throws On encryption or meta write failure.
      */
     public async save(prefs: TransportPrefsPayloadV1): Promise<void> {
         const disk = await this.load()
+        const prefsCursors = prefs.httpRestOutboxCursorByInstanceId
+        const diskCursors = disk.httpRestOutboxCursorByInstanceId
         const cursors = {
-            ...prefs.httpRestOutboxCursorByInstanceId,
-            ...disk.httpRestOutboxCursorByInstanceId,
+            ...diskCursors,
+            ...prefsCursors,
         }
+
+        if (prefsCursors && diskCursors) {
+            for (const instanceId of Object.keys(prefsCursors)) {
+                const fromPrefs = prefsCursors[instanceId]
+                const fromDisk = diskCursors[instanceId]
+
+                if (
+                    fromDisk !== undefined &&
+                    fromPrefs !== fromDisk &&
+                    cursors[instanceId] === fromDisk
+                ) {
+                    this.log.warn(
+                        "Transport prefs save: HTTP outbox cursor from prefs was overwritten by disk merge (same key): instanceId={instanceId} prefsCursor={prefsCursor} diskCursor={diskCursor} mergedCursor={mergedCursor}",
+                        {
+                            instanceId,
+                            prefsCursor: fromPrefs,
+                            diskCursor: fromDisk,
+                            mergedCursor: cursors[instanceId],
+                        },
+                    )
+                }
+            }
+        }
+
         const merged: TransportPrefsPayloadV1 = {
             ...prefs,
             httpRestOutboxCursorByInstanceId:
@@ -184,6 +211,22 @@ export class TransportPrefsProvider implements ITransportPrefsService {
             httpRestOutboxCursorByInstanceId:
                 Object.keys(next).length > 0 ? next : undefined,
         })
+
+        if (!clearing && cursor !== null) {
+            const after = await this.load()
+            const written = after.httpRestOutboxCursorByInstanceId?.[instanceId]
+
+            if (written !== cursor) {
+                this.log.warn(
+                    "HTTP REST outbox cursor read-back mismatch after save: instanceId={instanceId} expectedCursor={expectedCursor} storedCursor={storedCursor}",
+                    {
+                        instanceId,
+                        expectedCursor: cursor,
+                        storedCursor: written ?? null,
+                    },
+                )
+            }
+        }
 
         if (clearing) {
             this.log.debug(
