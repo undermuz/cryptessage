@@ -56,9 +56,11 @@ export class TransportPrefsProvider implements ITransportPrefsService {
                 profiles?: TransportProfilePlain[]
                 defaultInstanceId?: string | null
                 httpRestOutboxCursorByInstanceId?: unknown
+                httpRestStoreEpochByInstanceId?: unknown
             }
 
             const cursors = j.httpRestOutboxCursorByInstanceId
+            const epochs = j.httpRestStoreEpochByInstanceId
 
             return {
                 profiles: Array.isArray(j.profiles) ? j.profiles : [],
@@ -71,6 +73,12 @@ export class TransportPrefsProvider implements ITransportPrefsService {
                     cursors !== null &&
                     !Array.isArray(cursors)
                         ? (cursors as Record<string, string>)
+                        : undefined,
+                httpRestStoreEpochByInstanceId:
+                    typeof epochs === "object" &&
+                    epochs !== null &&
+                    !Array.isArray(epochs)
+                        ? (epochs as Record<string, string>)
                         : undefined,
             }
         } catch (e) {
@@ -121,10 +129,19 @@ export class TransportPrefsProvider implements ITransportPrefsService {
             }
         }
 
+        const prefsEpochs = prefs.httpRestStoreEpochByInstanceId
+        const diskEpochs = disk.httpRestStoreEpochByInstanceId
+        const epochs = {
+            ...diskEpochs,
+            ...prefsEpochs,
+        }
+
         const merged: TransportPrefsPayloadV1 = {
             ...prefs,
             httpRestOutboxCursorByInstanceId:
                 Object.keys(cursors).length > 0 ? cursors : undefined,
+            httpRestStoreEpochByInstanceId:
+                Object.keys(epochs).length > 0 ? epochs : undefined,
         }
 
         const mk = this.auth.getMasterKey()
@@ -234,5 +251,46 @@ export class TransportPrefsProvider implements ITransportPrefsService {
                 { instanceId },
             )
         }
+    }
+
+    public async applyHttpRestStoreEpochFromHeader(
+        instanceId: string,
+        epochHeader: string | null,
+    ): Promise<void> {
+        const h = epochHeader?.trim() ?? ""
+
+        if (h.length === 0) {
+            return
+        }
+
+        const disk = await this.load()
+        const prev = disk.httpRestStoreEpochByInstanceId?.[instanceId]
+        const shouldClearCursor =
+            typeof prev === "string" && prev.length > 0 && prev !== h
+
+        const nextCursors = {
+            ...(disk.httpRestOutboxCursorByInstanceId ?? {}),
+        }
+
+        if (shouldClearCursor) {
+            delete nextCursors[instanceId]
+
+            this.log.info(
+                "HTTP REST store epoch changed; outbox cursor cleared: instanceId={instanceId} prevEpoch={prevEpoch} newEpoch={newEpoch}",
+                { instanceId, prevEpoch: prev, newEpoch: h },
+            )
+        }
+
+        const nextEpochs = {
+            ...(disk.httpRestStoreEpochByInstanceId ?? {}),
+            [instanceId]: h,
+        }
+
+        await this.save({
+            ...disk,
+            httpRestOutboxCursorByInstanceId:
+                Object.keys(nextCursors).length > 0 ? nextCursors : undefined,
+            httpRestStoreEpochByInstanceId: nextEpochs,
+        })
     }
 }

@@ -12,7 +12,7 @@ Minimal **Fastify** app using **Inversify** and [`@inversifyjs/http-fastify`](ht
 - `DEPLOYMENT_SECRET` set (must match the **path segment** before `/v1` in client `baseUrl`)
 - `SESSION_HMAC_SECRET` set for default **adaptive** PoW (server-only; **not** the deployment path secret — see table below)
 
-The server registers **`@fastify/cors`** so browser clients (e.g. web-app on another origin/port) get `Access-Control-Allow-*` on preflight and responses. Allowed request headers include `Authorization`, `Content-Type`, `X-Cryptessage-Pow`, **`X-Cryptessage-Session`**, and `Idempotency-Key`. **`X-Cryptessage-Session`** is also listed in **`Access-Control-Expose-Headers`** so `fetch` can read rotated session tokens from responses. **`CORS_ORIGIN`** (optional) restricts allowed origins; if unset, empty, or `*`, any origin is allowed (same as `origin: true`).
+The server registers **`@fastify/cors`** so browser clients (e.g. web-app on another origin/port) get `Access-Control-Allow-*` on preflight and responses. Allowed request headers include `Authorization`, `Content-Type`, `X-Cryptessage-Pow`, **`X-Cryptessage-Session`**, and `Idempotency-Key`. **`Access-Control-Expose-Headers`** includes **`X-Cryptessage-Session`** (rotated session tokens) and **`X-Cryptessage-Store-Epoch`** (opaque id that changes on every process start so clients can drop stale outbox cursors after a restart). **`CORS_ORIGIN`** (optional) restricts allowed origins; if unset, empty, or `*`, any origin is allowed (same as `origin: true`).
 
 ## Configure
 

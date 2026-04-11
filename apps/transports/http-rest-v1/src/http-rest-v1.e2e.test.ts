@@ -7,8 +7,30 @@ import { buildHttpRestV1Server } from "./server.js"
 
 type OutboxRes = { nextCursor: string | null; messages: string[] }
 
+/** Same as {@link testConfig} except `storeEpoch` (simulates a new process after restart). */
+function restartScenarioConfig(storeEpoch: string): ServerEnv {
+    return {
+        storeEpoch,
+        port: 0,
+        deploymentSecret: "restart-test-deployment",
+        bearerToken: undefined,
+        difficultyBits: 1,
+        skipPow: true,
+        outboxPageSize: 50,
+        corsOrigin: true,
+        powMode: "adaptive",
+        powIdleMsBeforePow: 30 * 60 * 1000,
+        powMaxRps: 5,
+        powMaxRpm: 350,
+        sessionHmacSecret:
+            "restart-test-session-hmac-restart-test-session-hmac",
+        sessionMaxTtlMs: 24 * 60 * 60 * 1000,
+    }
+}
+
 function testConfig(): ServerEnv {
     return {
+        storeEpoch: "test-store-epoch-e2e",
         port: 0,
         deploymentSecret: "test-deployment-secret",
         bearerToken: undefined,
@@ -156,6 +178,40 @@ describe("http-rest-v1 server e2e", () => {
         await app.close()
     })
 
+    it("challenge and outbox responses expose X-Cryptessage-Store-Epoch", async () => {
+        const ch = await fetch(
+            `${baseUrl}/${deploymentSecret}/v1/challenge`,
+            { method: "GET" },
+        )
+
+        expect(ch.headers.get("X-Cryptessage-Store-Epoch")).toBe(
+            cfg.storeEpoch,
+        )
+
+        const selfKeyId = "epoch-check-self"
+        const post = await postInbox(
+            baseUrl,
+            deploymentSecret,
+            selfKeyId,
+            new TextEncoder().encode("epoch-probe"),
+        )
+
+        expect(post.status).toBe(202)
+        expect(post.headers.get("X-Cryptessage-Store-Epoch")).toBe(
+            cfg.storeEpoch,
+        )
+
+        const out = await fetch(
+            `${baseUrl}/${deploymentSecret}/v1/outbox/${selfKeyId}`,
+            { method: "GET" },
+        )
+
+        expect(out.status).toBe(200)
+        expect(out.headers.get("X-Cryptessage-Store-Epoch")).toBe(
+            cfg.storeEpoch,
+        )
+    })
+
     it("one-peer (self chat): inbox -> outbox returns once then cursor prevents duplicates", async () => {
         const selfKeyId = "fav-self"
         const payload = new TextEncoder().encode("hello-self-1")
@@ -232,9 +288,118 @@ describe("http-rest-v1 server e2e", () => {
     })
 })
 
+describe("http-rest-v1 process restart (store epoch)", () => {
+    it("new process changes X-Cryptessage-Store-Epoch; stale outbox cursor returns empty until client resets", async () => {
+        const cfgBefore = restartScenarioConfig("epoch-process-before")
+        const cfgAfter = restartScenarioConfig("epoch-process-after")
+
+        const app1 = await buildHttpRestV1Server(cfgBefore, { logger: false })
+
+        await app1.listen({ port: 0, host: "127.0.0.1" })
+
+        const addr1 = app1.server.address()
+
+        if (!addr1 || typeof addr1 === "string") {
+            throw new Error("unexpected listen address")
+        }
+
+        const baseUrl1 = `http://127.0.0.1:${addr1.port}`
+        const secret = cfgBefore.deploymentSecret
+
+        const ch1 = await fetch(
+            `${baseUrl1}/${secret}/v1/challenge`,
+            { method: "GET" },
+        )
+
+        expect(ch1.headers.get("X-Cryptessage-Store-Epoch")).toBe(
+            cfgBefore.storeEpoch,
+        )
+
+        const selfKeyId = "restart-outbox-key"
+
+        expect(
+            (
+                await postInbox(
+                    baseUrl1,
+                    secret,
+                    selfKeyId,
+                    new TextEncoder().encode("msg-before-restart"),
+                )
+            ).status,
+        ).toBe(202)
+
+        const firstPoll = await getOutbox(baseUrl1, secret, selfKeyId)
+
+        expect(firstPoll.messages.length).toBe(1)
+        expect(firstPoll.nextCursor).not.toBeNull()
+
+        const staleSince = firstPoll.nextCursor!
+
+        await app1.close()
+
+        const app2 = await buildHttpRestV1Server(cfgAfter, { logger: false })
+
+        await app2.listen({ port: 0, host: "127.0.0.1" })
+
+        const addr2 = app2.server.address()
+
+        if (!addr2 || typeof addr2 === "string") {
+            throw new Error("unexpected listen address")
+        }
+
+        const baseUrl2 = `http://127.0.0.1:${addr2.port}`
+
+        try {
+            const ch2 = await fetch(
+                `${baseUrl2}/${secret}/v1/challenge`,
+                { method: "GET" },
+            )
+
+            expect(ch2.headers.get("X-Cryptessage-Store-Epoch")).toBe(
+                cfgAfter.storeEpoch,
+            )
+            expect(ch2.headers.get("X-Cryptessage-Store-Epoch")).not.toBe(
+                cfgBefore.storeEpoch,
+            )
+
+            const staleRes = await fetch(
+                `${baseUrl2}/${secret}/v1/outbox/${selfKeyId}?since=${encodeURIComponent(staleSince)}`,
+                { method: "GET", headers: { accept: "application/json" } },
+            )
+
+            expect(staleRes.status).toBe(200)
+            expect(staleRes.headers.get("X-Cryptessage-Store-Epoch")).toBe(
+                cfgAfter.storeEpoch,
+            )
+
+            const staleJson = (await staleRes.json()) as OutboxRes
+
+            expect(staleJson.messages).toEqual([])
+
+            expect(
+                (
+                    await postInbox(
+                        baseUrl2,
+                        secret,
+                        selfKeyId,
+                        new TextEncoder().encode("msg-after-restart"),
+                    )
+                ).status,
+            ).toBe(202)
+
+            const freshPoll = await getOutbox(baseUrl2, secret, selfKeyId)
+
+            expect(freshPoll.messages.length).toBe(1)
+        } finally {
+            await app2.close()
+        }
+    })
+})
+
 describe("http-rest-v1 adaptive PoW session", () => {
     const deploymentSecret = "test-deployment-secret-adapt"
     const cfg: ServerEnv = {
+        storeEpoch: "test-store-epoch-adapt",
         port: 0,
         deploymentSecret,
         bearerToken: undefined,
@@ -333,6 +498,7 @@ describe("http-rest-v1 adaptive PoW session", () => {
 describe("http-rest-v1 powMode always", () => {
     const deploymentSecret = "test-deployment-secret-always"
     const cfg: ServerEnv = {
+        storeEpoch: "test-store-epoch-always",
         port: 0,
         deploymentSecret,
         bearerToken: undefined,

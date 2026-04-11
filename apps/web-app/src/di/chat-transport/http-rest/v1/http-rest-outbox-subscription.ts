@@ -16,6 +16,7 @@ import { TimersProvider, type ITimersProvider } from "@/di/utils/timers/types"
 
 import { extractDeploymentSecretFromBaseUrl } from "./deployment-secret"
 import { expandOutboxPath } from "./http-rest-paths"
+import { HTTP_REST_V1_STORE_EPOCH_HEADER } from "./http-rest-store-epoch"
 import { readUnauthorizedErrorCode } from "./pow-http-errors"
 import { HttpRestPowHeadersProvider } from "./pow-headers.provider"
 import type {
@@ -278,6 +279,10 @@ export class HttpRestOutboxSubscription {
 
                 this.powHeaders.onSuccessfulResponse(this.cfg, res)
 
+                await this.cfg.reconcileStoreEpoch(
+                    res.headers.get(HTTP_REST_V1_STORE_EPOCH_HEADER),
+                )
+
                 this.log.trace(
                     "Outbox GET ok: instanceId={instanceId} status={status}",
                     {
@@ -440,11 +445,25 @@ export class HttpRestOutboxSubscription {
             let pageIndex = 0
 
             while (this.isPollFresh(myCycle, pollSignal)) {
-                const json = await this.fetchOutboxPageJson(
+                let json = await this.fetchOutboxPageJson(
                     sinceParam,
                     basePath,
                     pollSignal,
                 )
+
+                const cursorAfterEpoch = await this.cfg.getOutboxCursor()
+
+                if (
+                    sinceParam.length > 0 &&
+                    (cursorAfterEpoch === null || cursorAfterEpoch.length === 0)
+                ) {
+                    sinceParam = ""
+                    json = await this.fetchOutboxPageJson(
+                        sinceParam,
+                        basePath,
+                        pollSignal,
+                    )
+                }
 
                 if (!this.isPollFresh(myCycle, pollSignal)) {
                     this.log.trace(

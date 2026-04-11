@@ -14,6 +14,11 @@ export type PowClientHints = {
 }
 
 export type ServerEnv = {
+    /**
+     * Opaque id for this process lifetime; when it changes (server restart), clients drop
+     * the HTTP REST outbox cursor so polling works against a fresh in-memory seq space.
+     */
+    storeEpoch: string
     port: number
     deploymentSecret: string
     bearerToken: string | undefined

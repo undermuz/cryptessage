@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto"
+
 import type { CorsOriginSetting, PowMode, ServerEnv } from "./types.js"
 
 function envBool(name: string, defaultValue: boolean): boolean {
@@ -138,8 +140,10 @@ export function loadServerEnv(): ServerEnv {
     )
 
     const powMode = envPowMode()
+    const storeEpoch = `${Date.now()}-${randomBytes(8).toString("hex")}`
 
     return {
+        storeEpoch,
         port,
         deploymentSecret: secret,
         bearerToken: bearer ? bearer : undefined,

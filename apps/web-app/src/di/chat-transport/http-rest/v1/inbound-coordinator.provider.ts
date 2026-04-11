@@ -195,6 +195,11 @@ export class HttpRestInboundCoordinatorProvider implements IHttpRestInboundCoord
                         instanceId,
                         cursor,
                     ),
+                reconcileStoreEpoch: (epochHeader) =>
+                    this.transportPrefs.applyHttpRestStoreEpochFromHeader(
+                        instanceId,
+                        epochHeader,
+                    ),
             }
 
             const handler = (bytes: Uint8Array) => {

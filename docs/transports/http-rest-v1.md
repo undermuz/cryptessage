@@ -44,6 +44,8 @@ Also send `Authorization: Bearer …` when configured.
 
 Successful responses MAY include `X-Cryptessage-Session` (adaptive mode) for the client to reuse. Browsers need CORS **`Access-Control-Expose-Headers`** to read this header from `fetch` (the reference server exposes it).
 
+Every successful **`GET /challenge`**, **`POST …/inbox/…`**, and **`GET …/outbox/…`** response SHOULD include **`X-Cryptessage-Store-Epoch`**: an opaque value that **changes when the server process restarts** (in-memory store generation). Clients that persist an outbox `since` cursor SHOULD compare this header to their last stored value; **when it differs**, they SHOULD **discard the cursor** and poll again from the start. That keeps polling correct after a restart when message sequence numbers reset. The reference server exposes this header for CORS the same way as `X-Cryptessage-Session`.
+
 ### Challenge
 
 `GET {baseUrl}/challenge` → challenge JSON (see [security.md](security.md)), optionally including `clientHints` for adaptive PoW policy.

@@ -106,6 +106,11 @@ export type HttpRestSubscribeRuntimeConfig = HttpRestParsedConfig & {
     getOutboxCursor: () => Promise<string | null>
     /** Persist cursor after each outbox page or empty poll. */
     setOutboxCursor: (cursor: string | null) => Promise<void>
+    /**
+     * When the server returns a new `X-Cryptessage-Store-Epoch`, clears the outbox cursor if the
+     * epoch changed since last time (restart recovery).
+     */
+    reconcileStoreEpoch: (epochHeader: string | null) => Promise<void>
 }
 
 /** JSON body shape for GET outbox responses. */

@@ -102,6 +102,11 @@ export type TransportPrefsPayloadV1 = {
      * (opaque server token, persisted across reloads).
      */
     httpRestOutboxCursorByInstanceId?: Record<string, string>
+    /**
+     * Last seen `X-Cryptessage-Store-Epoch` per `http_rest_v1` profile; when the header changes
+     * (server restart), the outbox cursor for that profile is cleared.
+     */
+    httpRestStoreEpochByInstanceId?: Record<string, string>
 }
 
 export type ResolvedTransportProfile = TransportProfilePlain & {
@@ -115,6 +120,14 @@ export type ITransportPrefsService = {
     setHttpRestOutboxCursor(
         instanceId: string,
         cursor: string | null,
+    ): Promise<void>
+    /**
+     * If `epochHeader` is non-empty and differs from the last stored epoch for `instanceId`,
+     * clears the HTTP REST outbox cursor for that profile, then stores the new epoch.
+     */
+    applyHttpRestStoreEpochFromHeader(
+        instanceId: string,
+        epochHeader: string | null,
     ): Promise<void>
 }
 

@@ -5,8 +5,10 @@ import {
     ChatTransportOutgoingStore,
     type IChatTransport,
     type IChatTransportOutgoingStore,
+    type ITransportPrefsService,
     type RecipientTransportMeta,
     type SenderTransportMeta,
+    TransportPrefsService,
     type Unsubscribe,
 } from "@/di/chat-transport/types"
 import { TimersProvider, type ITimersProvider } from "@/di/utils/timers/types"
@@ -14,6 +16,7 @@ import { TimersProvider, type ITimersProvider } from "@/di/utils/timers/types"
 import { extractDeploymentSecretFromBaseUrl } from "./deployment-secret"
 import type { CreateHttpRestOutboxSubscription } from "./http-rest-outbox-subscription"
 import { expandInboxPath } from "./http-rest-paths"
+import { HTTP_REST_V1_STORE_EPOCH_HEADER } from "./http-rest-store-epoch"
 import { readUnauthorizedErrorCode } from "./pow-http-errors"
 import { HttpRestPowHeadersProvider } from "./pow-headers.provider"
 import type {
@@ -65,6 +68,9 @@ export class HttpRestTransportProvider implements IChatTransport {
 
     @inject(HttpRestPowHeadersProvider)
     private readonly powHeaders!: HttpRestPowHeadersProvider
+
+    @inject(TransportPrefsService)
+    private readonly transportPrefs!: ITransportPrefsService
 
     @inject("Factory<HttpRestOutboxSubscription>")
     private readonly createHttpRestOutboxSubscription!: CreateHttpRestOutboxSubscription
@@ -280,6 +286,43 @@ export class HttpRestTransportProvider implements IChatTransport {
 
             this.powHeaders.onSuccessfulResponse(cfg, postRes)
 
+            const epochH = postRes.headers.get(HTTP_REST_V1_STORE_EPOCH_HEADER)
+
+            if (epochH?.trim()) {
+                const baseNorm = cfg.baseUrl.trim().replace(/\/$/, "")
+                const prefs = await this.transportPrefs.load()
+
+                for (const p of prefs.profiles) {
+                    if (
+                        p.kind !== HTTP_REST_V1_TRANSPORT_KIND ||
+                        !p.enabled
+                    ) {
+                        continue
+                    }
+
+                    let parsed: HttpRestParsedConfig
+
+                    try {
+                        parsed = this.parseConfig(
+                            p.config,
+                        ) as HttpRestParsedConfig
+                    } catch {
+                        continue
+                    }
+
+                    if (
+                        parsed.baseUrl.trim().replace(/\/$/, "") !== baseNorm
+                    ) {
+                        continue
+                    }
+
+                    await this.transportPrefs.applyHttpRestStoreEpochFromHeader(
+                        p.instanceId,
+                        epochH,
+                    )
+                }
+            }
+
             this.outgoing.setLastNetworkDelivery({
                 kind: HTTP_REST_V1_TRANSPORT_KIND,
                 status: postRes.status,
@@ -307,7 +350,12 @@ export class HttpRestTransportProvider implements IChatTransport {
             }
         }
 
-        if (!cfg.instanceId || !cfg.getOutboxCursor || !cfg.setOutboxCursor) {
+        if (
+            !cfg.instanceId ||
+            !cfg.getOutboxCursor ||
+            !cfg.setOutboxCursor ||
+            !cfg.reconcileStoreEpoch
+        ) {
             return () => {
                 return
             }

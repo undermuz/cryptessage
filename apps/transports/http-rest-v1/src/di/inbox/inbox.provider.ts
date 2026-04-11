@@ -67,22 +67,20 @@ export class InboxController {
         return { "X-Cryptessage-Session": gate.sessionHeader }
     }
 
+    private withStoreEpoch(headers: Record<string, string> = {}): Record<string, string> {
+        return {
+            ...headers,
+            "X-Cryptessage-Store-Epoch": this.config.storeEpoch,
+        }
+    }
+
     @Get("/:deploymentSecret/v1/challenge")
     challenge(
         @Params({ name: "deploymentSecret" }) deploymentSecret: string,
         @Request() req: FastifyRequest,
-    ): {
-        algorithm: "sha256-pow-v1"
-        nonce: string
-        difficultyBits: number
-        expiresAt: string
-        clientHints: {
-            powMode: ServerEnv["powMode"]
-            idleMsBeforePow: number
-            maxRps: number
-            maxRpm: number
-        }
-    } | UnauthorizedHttpResponse {
+    ):
+        | OkHttpResponse
+        | UnauthorizedHttpResponse {
         if (
             !this.httpAuth.assertDeploymentSecret(
                 deploymentSecret,
@@ -103,18 +101,23 @@ export class InboxController {
 
         this.challenges.rememberChallenge(nonce, difficultyBits, expiresAt)
 
-        return {
-            algorithm: "sha256-pow-v1",
-            nonce,
-            difficultyBits,
-            expiresAt,
-            clientHints: {
-                powMode: this.config.powMode,
-                idleMsBeforePow: this.config.powIdleMsBeforePow,
-                maxRps: this.config.powMaxRps,
-                maxRpm: this.config.powMaxRpm,
+        return new OkHttpResponse(
+            {
+                algorithm: "sha256-pow-v1",
+                nonce,
+                difficultyBits,
+                expiresAt,
+                clientHints: {
+                    powMode: this.config.powMode,
+                    idleMsBeforePow: this.config.powIdleMsBeforePow,
+                    maxRps: this.config.powMaxRps,
+                    maxRpm: this.config.powMaxRpm,
+                },
             },
-        }
+            this.withStoreEpoch({
+                "content-type": "application/json; charset=utf-8",
+            }),
+        )
     }
 
     @Get("/:deploymentSecret/v1/outbox/:selfKeyId")
@@ -174,10 +177,10 @@ export class InboxController {
                 ? this.outboxCursor.encode(page.lastSeqInPage)
                 : null
 
-        const resHeaders: Record<string, string> = {
+        const resHeaders = this.withStoreEpoch({
             "content-type": "application/json; charset=utf-8",
             ...this.sessionHeadersFromGate(gate),
-        }
+        })
 
         return new OkHttpResponse({ nextCursor, messages }, resHeaders)
     }
@@ -230,7 +233,10 @@ export class InboxController {
         }
 
         if (idemKey !== undefined && this.idempotency.hasKey(idemKey)) {
-            return new AcceptedHttpResponse({ ok: true, deduplicated: true })
+            return new AcceptedHttpResponse(
+                { ok: true, deduplicated: true },
+                this.withStoreEpoch(),
+            )
         }
 
         const gate = this.powGate.verifyForRequest(req, powHeader, sessionHeader)
@@ -261,12 +267,9 @@ export class InboxController {
             this.idempotency.rememberKey(idemKey)
         }
 
-        const resHeaders = this.sessionHeadersFromGate(gate)
+        const resHeaders = this.withStoreEpoch(this.sessionHeadersFromGate(gate))
 
-        return new AcceptedHttpResponse(
-            { ok: true },
-            Object.keys(resHeaders).length > 0 ? resHeaders : undefined,
-        )
+        return new AcceptedHttpResponse({ ok: true }, resHeaders)
     }
 }
 
