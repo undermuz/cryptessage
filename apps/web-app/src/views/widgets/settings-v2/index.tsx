@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { Copy, Download, Lock } from "lucide-react"
+import { Copy, Download, Lock, RefreshCw } from "lucide-react"
 
 import type { Key } from "@heroui/react"
 import { Button, Spinner, Surface, Tabs, TextArea } from "@heroui/react"
@@ -19,6 +19,8 @@ import {
     VaultBackupService,
     type IVaultBackupService,
 } from "@/di/vault-backup/types"
+
+import { reloadAppForUpdate } from "@/lib/pwa-reload"
 
 import { SettingsTransportsHeroUI } from "./settings-transports.heroui"
 
@@ -39,6 +41,9 @@ export function SettingsWidgetHeroUI() {
         useState<CryptoProtocolId>("openpgp")
     const [err, setErr] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
+    const [updateBusy, setUpdateBusy] = useState(false)
+
+    const appVersion = import.meta.env.VITE_APP_VERSION ?? "—"
 
     useEffect(() => {
         let alive = true
@@ -274,6 +279,30 @@ export function SettingsWidgetHeroUI() {
                     {t("settings.exportBackup")}
                 </Button>
                 {err ? <p className="text-sm text-danger">{err}</p> : null}
+            </Surface>
+
+            <Surface className="space-y-3 rounded-3xl p-5" variant="secondary">
+                <div className="space-y-1">
+                    <h2 className="text-sm font-semibold">
+                        {t("settings.appVersion")}
+                    </h2>
+                    <p className="font-mono text-sm text-foreground">{appVersion}</p>
+                    <p className="text-xs text-default-500">
+                        {t("settings.updateAppHint")}
+                    </p>
+                </div>
+                <Button
+                    type="button"
+                    variant="outline"
+                    isPending={updateBusy}
+                    onPress={() => {
+                        setUpdateBusy(true)
+                        void reloadAppForUpdate()
+                    }}
+                >
+                    <RefreshCw className="size-4" />
+                    {t("settings.updateApp")}
+                </Button>
             </Surface>
 
             <div className="pt-2">

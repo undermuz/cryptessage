@@ -1,10 +1,18 @@
 /// <reference types='vitest' />
+import { readFileSync } from "node:fs"
 import path from "node:path"
 
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
+
+const webAppPackageJson = JSON.parse(
+    readFileSync(
+        new URL("./package.json", import.meta.url),
+        "utf-8",
+    ),
+) as { version: string }
 
 export default defineConfig(() => {
     const base = process.env.VITE_BASE_PATH ?? "/"
@@ -13,6 +21,11 @@ export default defineConfig(() => {
         root: import.meta.dirname,
         /** GitHub project pages: set `VITE_BASE_PATH=/<repo>/` in CI (trailing slash). */
         base,
+        define: {
+            "import.meta.env.VITE_APP_VERSION": JSON.stringify(
+                webAppPackageJson.version,
+            ),
+        },
         cacheDir: "../../node_modules/.vite/apps/web-app",
         server: {
             port: 4200,

@@ -144,7 +144,10 @@
         "visitCardFormat": "Your visit card (QR) format",
         "visitCardFormatHint": "OpenPGP is larger but interoperable; Compact v1 is ~70–90 bytes for easier QR scanning.",
         "visitCardOpenpgp": "OpenPGP (CMV2 / JSON)",
-        "visitCardCompact": "Compact v1 (binary)"
+        "visitCardCompact": "Compact v1 (binary)",
+        "appVersion": "App version",
+        "updateApp": "Update app",
+        "updateAppHint": "Clears the installed app cache and reloads so the latest version can load. Your vault stays on this device."
     },
     "transport": {
         "channelTabs": "Send via",
