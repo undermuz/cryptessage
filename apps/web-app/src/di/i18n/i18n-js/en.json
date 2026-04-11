@@ -114,6 +114,7 @@
         "messagePlaceholder": "Type a message…",
         "sendOpenEncrypted": "Send",
         "sendEncryptedTitle": "Encrypted message (QR & text)",
+        "httpInboxManualRefresh": "Fetch new messages over HTTP",
         "receiveMessages": "Receive messages",
         "receiveModalTitle": "Receive encrypted message",
         "scrollToBottom": "Scroll to bottom",
@@ -181,7 +182,8 @@
         "httpRestDeliveredBody": "Ciphertext for %{name} was posted to the server (HTTP %{status}).",
         "httpRestNoQrHint": "You do not need a QR for this send unless you also want an offline copy.",
         "httpRestAwait": "Network send did not complete for this attempt; use another tab or QR.",
-        "httpRestReceiveHint": "To receive over HTTP, set \"outboxSelfKeyId\" (your mailbox id on this server), optional \"outboxPathTemplate\" (default \"/outbox/{{selfKeyId}}\"), and optional \"pollIntervalMs\" (1000–60000, default 10000). The app polls while unlocked and persists the server cursor per profile."
+        "httpRestRetry": "Retry send",
+        "httpRestReceiveHint": "To receive over HTTP, set \"outboxSelfKeyId\" (your mailbox id on this server), optional \"outboxPathTemplate\" (default \"/outbox/{{selfKeyId}}\"), and optional \"pollIntervalMs\" (1000–60000, default 10000). The app polls while unlocked and persists the server cursor per profile. Set \"enablePoll\": false to disable automatic polling; then use the refresh button in the chat header to fetch once."
     },
     "common": {
         "loading": "Loading…",

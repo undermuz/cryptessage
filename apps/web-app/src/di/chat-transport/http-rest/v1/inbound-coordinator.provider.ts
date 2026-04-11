@@ -1,4 +1,5 @@
 import { inject, injectable } from "inversify"
+import { proxy } from "valtio"
 
 import { HTTP_REST_V1_TRANSPORT_KIND } from "@/di/chat-transport/constants"
 import type { ILoggerFactory } from "@/di/logger/types"
@@ -24,20 +25,28 @@ import {
 } from "@/di/messaging-crypto/types"
 import { bytesToBase64 } from "@/di/secure/encoding"
 
+import type { CreateHttpRestOutboxSubscription } from "./http-rest-outbox-subscription"
+import { HttpRestOutboxSubscription } from "./http-rest-outbox-subscription"
 import type {
+    HttpRestManualInboundUi,
     HttpRestParsedConfig,
     HttpRestSubscribeRuntimeConfig,
     IHttpRestInboundCoordinator,
 } from "./types"
 
 /**
- * Wires {@link HttpRestTransportProvider.subscribe} for every enabled `http_rest_v1` profile
- * that has `outboxSelfKeyId`, persists cursors via {@link ITransportPrefsService}, and saves
- * decoded inbound payloads to the vault. Dedupes rapid duplicate deliveries by SHA-256 of raw bytes.
+ * Wires outbox polling for every enabled `http_rest_v1` profile that has `outboxSelfKeyId`,
+ * persists cursors via {@link ITransportPrefsService}, and saves decoded inbound payloads to the
+ * vault. Profiles with `enablePoll: false` register for manual refresh only. Dedupes rapid
+ * duplicate deliveries by SHA-256 of raw bytes.
  */
 @injectable()
 export class HttpRestInboundCoordinatorProvider implements IHttpRestInboundCoordinator {
     private readonly log: ILogger
+
+    public readonly manualInboundUi: HttpRestManualInboundUi = proxy({
+        canManualRefresh: false,
+    })
 
     /** Loads profiles and persists per-instance HTTP outbox cursors. */
     @inject(TransportPrefsService)
@@ -59,12 +68,18 @@ export class HttpRestInboundCoordinatorProvider implements IHttpRestInboundCoord
     @inject(ChatThreadService)
     private readonly chat!: IChatThreadService
 
+    @inject("Factory<HttpRestOutboxSubscription>")
+    private readonly createHttpRestOutboxSubscription!: CreateHttpRestOutboxSubscription
+
     constructor(@inject("Factory<Logger>") loggerFactory: ILoggerFactory) {
         this.log = loggerFactory("HttpRestInboundCoordinator")
     }
 
     /** Active `subscribe` teardown functions from the last {@link HttpRestInboundCoordinatorProvider.start}. */
     private unsubs: Unsubscribe[] = []
+
+    /** Subscriptions with interval polling off (`enablePoll: false`); polled via {@link refreshManualHttpInboxes}. */
+    private manualSubs: HttpRestOutboxSubscription[] = []
     /**
      * Recent inbound payload hashes (base64 SHA-256) with timestamps;
      * used to skip duplicate network deliveries within a TTL window.
@@ -109,6 +124,12 @@ export class HttpRestInboundCoordinatorProvider implements IHttpRestInboundCoord
         }
 
         this.unsubs = []
+        this.manualSubs = []
+        this.manualInboundUi.canManualRefresh = false
+    }
+
+    public async refreshManualHttpInboxes(): Promise<void> {
+        await Promise.all(this.manualSubs.map((s) => s.pollOnce()))
     }
 
     /**
@@ -176,12 +197,30 @@ export class HttpRestInboundCoordinatorProvider implements IHttpRestInboundCoord
                     ),
             }
 
-            const unsub = impl.subscribe((bytes) => {
+            const handler = (bytes: Uint8Array) => {
                 void this.onInbound(bytes)
-            }, subscribeCfg)
+            }
 
-            this.unsubs.push(unsub)
+            const selfKeyId = parsed.outboxSelfKeyId.trim()
+
+            const sub = this.createHttpRestOutboxSubscription(
+                subscribeCfg,
+                selfKeyId,
+                handler,
+            )
+
+            if (parsed.enablePoll) {
+                sub.start()
+            } else {
+                this.manualSubs.push(sub)
+            }
+
+            this.unsubs.push(() => {
+                sub.dispose()
+            })
         }
+
+        this.manualInboundUi.canManualRefresh = this.manualSubs.length > 0
     }
 
     /**

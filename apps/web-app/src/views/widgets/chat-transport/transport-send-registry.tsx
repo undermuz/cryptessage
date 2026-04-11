@@ -17,6 +17,8 @@ export type TransportSendPanelProps = {
     labels: ExportQrLabels
     onNotify: (message: string | null) => void
     networkDelivery: LastNetworkDelivery | null
+    /** Optional: e.g. HTTP REST panel uses this to re-POST the pending ciphertext. */
+    onRetryNetworkSend?: () => Promise<void>
 }
 
 export const transportSendPanelRegistry: Record<

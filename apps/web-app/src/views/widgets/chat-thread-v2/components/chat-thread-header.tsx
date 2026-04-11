@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
-import { Inbox, Trash2 } from "lucide-react"
-import { Button, Input } from "@heroui/react"
+import { Inbox, RefreshCw, Trash2 } from "lucide-react"
+import { Button, Input, Spinner } from "@heroui/react"
 import { useSnapshot } from "valtio/react"
 
+import {
+    HttpRestInboundCoordinator,
+    type IHttpRestInboundCoordinator,
+} from "@/di/chat-transport/http-rest/v1/types"
 import type { IChatThreadService } from "@/di/chat-thread/types"
 import {
     ConversationService,
@@ -29,11 +33,16 @@ export function ChatThreadHeaderHeroUI({
     const snap = useSnapshot(chat.state)
     const contact = snap.contact
     const conv = useDi<IConversationService>(ConversationService)
+    const httpInbound = useDi<IHttpRestInboundCoordinator>(
+        HttpRestInboundCoordinator,
+    )
+    const inboundSnap = useSnapshot(httpInbound.manualInboundUi)
 
     const [httpInboxId, setHttpInboxId] = useState("")
     const [deleteOpen, setDeleteOpen] = useState(false)
     const [deleteBusy, setDeleteBusy] = useState(false)
     const [deleteErr, setDeleteErr] = useState<string | null>(null)
+    const [manualInboxBusy, setManualInboxBusy] = useState(false)
 
     useEffect(() => {
         if (!contact) {
@@ -88,6 +97,32 @@ export function ChatThreadHeaderHeroUI({
                     </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-0.5">
+                    {inboundSnap.canManualRefresh ? (
+                        <Button
+                            isIconOnly
+                            variant="ghost"
+                            size="sm"
+                            isDisabled={manualInboxBusy}
+                            aria-label={t("chat.httpInboxManualRefresh")}
+                            onPress={() => {
+                                void (async () => {
+                                    setManualInboxBusy(true)
+
+                                    try {
+                                        await httpInbound.refreshManualHttpInboxes()
+                                    } finally {
+                                        setManualInboxBusy(false)
+                                    }
+                                })()
+                            }}
+                        >
+                            {manualInboxBusy ? (
+                                <Spinner size="sm" />
+                            ) : (
+                                <RefreshCw className="size-5" />
+                            )}
+                        </Button>
+                    ) : null}
                     <Button
                         isIconOnly
                         variant="ghost"

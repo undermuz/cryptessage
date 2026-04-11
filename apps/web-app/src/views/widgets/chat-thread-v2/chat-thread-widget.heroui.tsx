@@ -76,7 +76,7 @@ export function ChatThreadWidgetHeroUI() {
 
             if (c) {
                 try {
-                    const r = await transportMgr.prepareOutgoingForDisplay(
+                    const r = await transportMgr.send(
                         c,
                         bundle,
                     )
@@ -128,7 +128,7 @@ export function ChatThreadWidgetHeroUI() {
             const c = chat.state.contact
 
             if (c) {
-                const r = await transportMgr.prepareOutgoingForDisplay(
+                const r = await transportMgr.send(
                     c,
                     bundle,
                 )

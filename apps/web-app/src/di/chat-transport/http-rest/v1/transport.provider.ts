@@ -127,6 +127,8 @@ export class HttpRestTransportProvider implements IChatTransport {
                 ? Math.min(o.timeoutMs, 120_000)
                 : 15_000
 
+        const enablePoll = o.enablePoll !== false
+
         return {
             baseUrl,
             bearerToken:
@@ -139,6 +141,7 @@ export class HttpRestTransportProvider implements IChatTransport {
             pollIntervalMs,
             timeoutMs,
             skipPow,
+            enablePoll,
         }
     }
 
@@ -238,7 +241,9 @@ export class HttpRestTransportProvider implements IChatTransport {
             handler,
         )
 
-        subscription.start()
+        if (cfg.enablePoll) {
+            subscription.start()
+        }
 
         return subscription.asUnsubscribe()
     }

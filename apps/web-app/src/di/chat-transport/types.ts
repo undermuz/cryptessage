@@ -119,14 +119,21 @@ export type ITransportPrefsService = {
 }
 
 export type IChatTransportManager = {
-    prepareOutgoingForDisplay(
+    send(
         contact: ContactPlain,
         bundle: EncryptedOutgoingBundle,
     ): Promise<{ usedInstanceId: string; usedKind: string }>
+    /**
+     * POST the pending outgoing again for a specific transport profile (e.g. after a failed
+     * `http_rest_v1` attempt while the send modal still holds the same pending bundle).
+     */
+    retrySendByInstance(
+        contact: ContactPlain,
+        instanceId: string,
+    ): Promise<void>
     clearOutgoing(): void
-    getOrderedProfilesForContact(
+    orderProfilesForContact(
         contact: ContactPlain,
     ): Promise<ResolvedTransportProfile[]>
-    listAllProfilesResolved(): Promise<ResolvedTransportProfile[]>
-    openQrReceiveFallback(): void
+    getProfiles(): Promise<ResolvedTransportProfile[]>
 }

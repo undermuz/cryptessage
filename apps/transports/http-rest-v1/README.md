@@ -75,23 +75,22 @@ The build runs `npm ci --legacy-peer-deps` to tolerate peer-dependency conflicts
 **Required:** `DEPLOYMENT_SECRET` — the same secret as in the client URL: `https://your-host/<DEPLOYMENT_SECRET>/v1`.
 
 ```bash
-export DEPLOYMENT_SECRET='use-a-long-random-secret'
-export PORT=3333
-
 docker run -d --name http-rest-v1 \
   --restart unless-stopped \
-  -p "${PORT}:${PORT}" \
-  -e DEPLOYMENT_SECRET \
-  -e PORT \
+  -p 3333:3333 \
+  -e DEPLOYMENT_SECRET='use-a-long-random-secret' \
+  -e PORT=3333 \
   cryptessage-http-rest-v1:latest
 ```
 
+Replace `use-a-long-random-secret` and the host port (`3333:3333`) with your own values. Environment variables are set **only inside the container** via `-e`; nothing is written to your shell.
+
 For a shared bearer token, add `-e INBOX_BEARER_TOKEN='…'` and set the same value as `bearerToken` on the client profile.
 
-Smoke check:
+Smoke check (must match the `-e` values above):
 
 ```bash
-curl -sS "http://127.0.0.1:${PORT}/${DEPLOYMENT_SECRET}/v1/challenge"
+curl -sS "http://127.0.0.1:3333/use-a-long-random-secret/v1/challenge"
 ```
 
 ### 4. Production: TLS and port 443

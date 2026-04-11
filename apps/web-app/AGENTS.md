@@ -79,6 +79,44 @@ After generation:
 - ensure the module is correctly registered in `di/container.ts`;
 - add initialization in `di/app/app.provider.ts` if required.
 
+## Logging
+
+- **Stack**: [LogTape](https://github.com/dahlia/logtape) is configured in `di/config/config-logger.provider.ts`. Loggers under the `di` category respect `config.logLevel` from `AppConfig`.
+- **DI providers** (`di/**`): inject the logger factory, not `console`:
+
+  ```ts
+  import type { ILoggerFactory } from "@/di/logger/types"
+  import type { ILogger } from "@/di/types/logger"
+
+  @injectable()
+  export class MyProvider {
+      private readonly log: ILogger
+
+      constructor(@inject("Factory<Logger>") loggerFactory: ILoggerFactory) {
+          this.log = loggerFactory("MyProvider") // → category ["di", "MyProvider"]
+      }
+  }
+  ```
+
+  `LogTapeModule` binds `"Factory<Logger>"`; ensure the app container already loads it (same as other services).
+
+- **Message shape**: use a template string with `name={name}`-style holes, then a **single context object** as the next argument (including `error` for caught values). This matches existing providers such as `HttpRestInboundCoordinatorProvider` and `HttpRestOutboxSubscription`.
+
+  ```ts
+  this.log.warn("Send attempt failed: kind={kind} error={error}", {
+      kind: prof.kind,
+      error: e,
+  })
+  ```
+
+- **Levels (typical use)**:
+  - `debug` — flow, subscribe/unsubscribe, skips that are normal;
+  - `info` — user-visible success paths worth tracing in production logs;
+  - `warn` — invalid config, failed attempt with fallback, handled inbound errors;
+  - `error` — exhausted retries / no viable path before throwing.
+
+- **Do not** use `console.*` in `di` for structured diagnostics; **do** keep user-visible UI copy in i18n (`useT`) — log messages are for developers/operators, not end-user strings.
+
 ## UI and code style
 
 - Use building blocks from `@libs/views` and `@libs/views/ui/*`.
@@ -100,4 +138,5 @@ After generation:
 - [ ] New DI module registered in the container.
 - [ ] If needed, service initializes in the `App` provider.
 - [ ] New route hooked into the parent `tree`.
+- [ ] New or touched `di` services use `Factory<Logger>` + `ILogger` as above (no ad-hoc `console` for domain logs).
 - [ ] Local checks (lint/types) pass for changed files.

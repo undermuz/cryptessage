@@ -7,7 +7,17 @@ export const HttpRestInboundCoordinator = Symbol.for(
  * Application hook: start/stop background HTTP outbox polling for all configured `http_rest_v1` profiles.
  * Implemented by {@link HttpRestInboundCoordinatorProvider}.
  */
+/** UI flags for manual HTTP outbox refresh (see `enablePoll: false`). */
+export type HttpRestManualInboundUi = {
+    canManualRefresh: boolean
+}
+
 export type IHttpRestInboundCoordinator = {
+    /**
+     * When at least one `http_rest_v1` profile has `outboxSelfKeyId` and `enablePoll: false`,
+     * the chat header can offer a one-shot outbox pull via {@link refreshManualHttpInboxes}.
+     */
+    readonly manualInboundUi: HttpRestManualInboundUi
     /**
      * Idempotent: unsubscribes previous listeners, then subscribes for each eligible profile.
      * No-op if the `http_rest_v1` transport is not registered.
@@ -15,6 +25,8 @@ export type IHttpRestInboundCoordinator = {
     start(): Promise<void>
     /** Tears down all subscriptions created by the last `start` (safe to call multiple times). */
     stop(): void
+    /** Runs one outbox fetch cycle for every profile with automatic polling disabled. */
+    refreshManualHttpInboxes(): Promise<void>
 }
 
 /** Server-issued challenge for `sha256-pow-v1` (GET `/challenge` JSON body). */
@@ -52,6 +64,12 @@ export type HttpRestParsedConfig = {
      * Skip PoW challenge/proof (allowed only for local/private base URLs such as localhost).
      */
     skipPow: boolean
+    /**
+     * When `false`, the app does not start an outbox poll interval for this profile; use
+     * {@link IHttpRestInboundCoordinator.refreshManualHttpInboxes} from the chat UI instead.
+     * When omitted or `true`, {@link pollIntervalMs} applies as before.
+     */
+    enablePoll: boolean
 }
 
 /**

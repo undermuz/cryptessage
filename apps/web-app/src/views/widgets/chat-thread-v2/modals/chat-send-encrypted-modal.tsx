@@ -4,6 +4,7 @@ import type { Key } from "@heroui/react"
 import { useSnapshot } from "valtio/react"
 
 import type { IChatThreadService } from "@/di/chat-thread/types"
+import { HTTP_REST_V1_TRANSPORT_KIND } from "@/di/chat-transport/constants"
 import {
     ChatTransportManager,
     ChatTransportOutgoingStore,
@@ -80,7 +81,7 @@ export function ChatSendEncryptedModalHeroUI(props: {
         setProfileLoading(true)
 
         void transportMgr
-            .getOrderedProfilesForContact(contactPlain)
+            .orderProfilesForContact(contactPlain)
             .then((list) => {
                 setResolvedProfiles(list)
                 setLocalOrder(list.map((p) => p.instanceId))
@@ -204,6 +205,21 @@ export function ChatSendEncryptedModalHeroUI(props: {
         activeProfile &&
         (transportSendPanelRegistry[activeProfile.kind] ?? null)
 
+    const retryNetworkSend = useCallback(async () => {
+        if (!contactPlain || !activeProfile) {
+            return
+        }
+
+        if (activeProfile.kind !== HTTP_REST_V1_TRANSPORT_KIND) {
+            return
+        }
+
+        await transportMgr.retrySendByInstance(
+            contactPlain,
+            activeProfile.instanceId,
+        )
+    }, [activeProfile, contactPlain, transportMgr])
+
     return (
         <Modal isOpen={open} onOpenChange={onOpenChange}>
             <Modal.Backdrop>
@@ -286,6 +302,7 @@ export function ChatSendEncryptedModalHeroUI(props: {
                                         networkDelivery={
                                             outSnap.lastNetworkDelivery
                                         }
+                                        onRetryNetworkSend={retryNetworkSend}
                                     />
                                 ) : (
                                     <TransportSendFallbackPanelHeroUI
@@ -297,6 +314,7 @@ export function ChatSendEncryptedModalHeroUI(props: {
                                         networkDelivery={
                                             outSnap.lastNetworkDelivery
                                         }
+                                        onRetryNetworkSend={retryNetworkSend}
                                     />
                                 )
                             ) : null}
