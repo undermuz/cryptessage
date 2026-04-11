@@ -18,6 +18,15 @@ The server registers **`@fastify/cors`** so browser clients (e.g. web-app on ano
 
 **Recommended:** keep values in an env file. Copy [`env.example`](env.example) to **`apps/transports/http-rest-v1/.env`** (gitignored), edit secrets, then:
 
+From the **monorepo root**:
+
+```bash
+cp apps/transports/http-rest-v1/env.example apps/transports/http-rest-v1/.env
+cp apps/transports/http-rest-v1/docker-compose.example.yml apps/transports/http-rest-v1/docker-compose.yml
+```
+
+(The second line is only if you use Docker Compose; `docker-compose.yml` is gitignored so you can edit it without touching the tracked example.)
+
 - **Docker:** `docker run … --env-file apps/transports/http-rest-v1/.env` (path relative to monorepo root).
 - **Local shell:** load the file before `nx serve` (see [Run (Nx)](#run-nx)).
 
@@ -98,6 +107,19 @@ docker run -d --name http-rest-v1 \
   cryptessage-http-rest-v1:latest
 ```
 
+#### Docker Compose
+
+The same `.env` in `apps/transports/http-rest-v1/` can drive an example stack: [`docker-compose.example.yml`](docker-compose.example.yml). It builds from the monorepo root, loads **`env_file: .env`**, and maps **`127.0.0.1:3333:3333`** (host loopback only). After copying the example to `docker-compose.yml` (see **Configure**), run Compose from that directory so the default file is picked up (no `-f`):
+
+```bash
+cd apps/transports/http-rest-v1
+docker compose up -d --build
+```
+
+Tear down: `docker compose down` (same directory).
+
+If you have **not** created `docker-compose.yml` and want to run the tracked example once: from the repo root, `docker compose -f apps/transports/http-rest-v1/docker-compose.example.yml up -d --build` (then `down` with the same `-f`). If `PORT` in `.env` is not `3333`, edit the `ports` entry in the compose file to match (see comment in the YAML).
+
 Adjust host port mapping if `PORT` in the file is not `3333` (use `-p "${PORT}:${PORT}"` or map accordingly).
 
 Add optional variables to the **same** file (`INBOX_BEARER_TOKEN`, `POW_MODE=always`, `POW_IDLE_MS_BEFORE_POW`, …) instead of repeating `-e` flags. For a one-off smoke test you can still pass `-e KEY=value`, but **env-file is the recommended format** for real deployments.
@@ -125,6 +147,7 @@ sudo ufw enable
 | --- | --- |
 | [`Dockerfile`](Dockerfile) | Multi-stage build: `tsc` in builder; runtime image has only `dist/` and minimal dependencies |
 | [`env.example`](env.example) | Template for **`--env-file`** / local `.env` (copy to `.env`, do not commit) |
+| [`docker-compose.example.yml`](docker-compose.example.yml) | Example Compose: build from monorepo root, `.env`, **`127.0.0.1:3333:3333`** |
 | [`package.runtime.json`](package.runtime.json) | Runtime dependencies (Fastify, Inversify, …). If new `node_modules` imports appear after code changes, align versions with the repo root `package.json` |
 
 ## Client profile (`http_rest_v1`)

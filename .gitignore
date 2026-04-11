@@ -45,5 +45,6 @@ Thumbs.db
 
 vite.config.*.timestamp*
 
-# http-rest-v1 local env (see apps/transports/http-rest-v1/env.example)
+# http-rest-v1 local env / compose (see env.example, docker-compose.example.yml)
 apps/transports/http-rest-v1/.env
+apps/transports/http-rest-v1/docker-compose.yml

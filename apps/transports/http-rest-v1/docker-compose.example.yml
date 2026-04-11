@@ -1,0 +1,22 @@
+# Example Compose stack for the reference http-rest-v1 server.
+#
+# 1. Copy env.example → .env and this file → docker-compose.yml in this directory; set secrets in .env.
+# 2. From this directory: docker compose up -d --build  (default compose file: docker-compose.yml)
+#    One-off without copying: from monorepo root,
+#    docker compose -f apps/transports/http-rest-v1/docker-compose.example.yml up -d --build
+#
+# Listens on the host loopback only: http://127.0.0.1:3333/
+# If PORT in .env is not 3333, change the right side of ports to match (host:container).
+
+services:
+  http-rest-v1:
+    build:
+      context: ../../..
+      dockerfile: apps/transports/http-rest-v1/Dockerfile
+    image: cryptessage-http-rest-v1:latest
+    container_name: http-rest-v1
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:3333:3333"
+    restart: unless-stopped
