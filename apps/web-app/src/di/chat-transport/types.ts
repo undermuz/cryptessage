@@ -107,6 +107,13 @@ export type TransportPrefsPayloadV1 = {
      * (server restart), the outbox cursor for that profile is cleared.
      */
     httpRestStoreEpochByInstanceId?: Record<string, string>
+    /**
+     * Epoch value from prefs at the time the opaque outbox cursor was last persisted for that
+     * profile. Used to detect a stranded state: stored epoch matches the server header but the
+     * cursor was never re-validated under that epoch (e.g. older bug saved epoch without clearing
+     * the cursor).
+     */
+    httpRestOutboxCursorBoundEpochByInstanceId?: Record<string, string>
 }
 
 export type ResolvedTransportProfile = TransportProfilePlain & {

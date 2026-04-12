@@ -57,10 +57,12 @@ export class TransportPrefsProvider implements ITransportPrefsService {
                 defaultInstanceId?: string | null
                 httpRestOutboxCursorByInstanceId?: unknown
                 httpRestStoreEpochByInstanceId?: unknown
+                httpRestOutboxCursorBoundEpochByInstanceId?: unknown
             }
 
             const cursors = j.httpRestOutboxCursorByInstanceId
             const epochs = j.httpRestStoreEpochByInstanceId
+            const boundEpochs = j.httpRestOutboxCursorBoundEpochByInstanceId
 
             return {
                 profiles: Array.isArray(j.profiles) ? j.profiles : [],
@@ -80,6 +82,12 @@ export class TransportPrefsProvider implements ITransportPrefsService {
                     !Array.isArray(epochs)
                         ? (epochs as Record<string, string>)
                         : undefined,
+                httpRestOutboxCursorBoundEpochByInstanceId:
+                    typeof boundEpochs === "object" &&
+                    boundEpochs !== null &&
+                    !Array.isArray(boundEpochs)
+                        ? (boundEpochs as Record<string, string>)
+                        : undefined,
             }
         } catch (e) {
             this.log.warn(
@@ -91,9 +99,11 @@ export class TransportPrefsProvider implements ITransportPrefsService {
     }
 
     /**
-     * Encrypts and writes prefs. Merges `httpRestOutboxCursorByInstanceId`: **disk first, then
-     * prefs**, so explicit cursor updates in `prefs` win over the re-read from disk, while
-     * profile-only saves (no cursor map in `prefs`) keep existing cursors from disk.
+     * Encrypts and writes prefs. `httpRestOutboxCursorByInstanceId`:
+     * - **omitted / `undefined`** — keep the cursor map already on disk (e.g. profile-only saves);
+     * - **present** (including `{}`) — **replace** the stored map (caller passes the full desired
+     *   map, including after deleting keys). Merging with `{ ...disk, ...prefs }` would never remove
+     *   keys, so replacement is required for clears.
      *
      * @throws On encryption or meta write failure.
      */
@@ -101,33 +111,10 @@ export class TransportPrefsProvider implements ITransportPrefsService {
         const disk = await this.load()
         const prefsCursors = prefs.httpRestOutboxCursorByInstanceId
         const diskCursors = disk.httpRestOutboxCursorByInstanceId
-        const cursors = {
-            ...diskCursors,
-            ...prefsCursors,
-        }
-
-        if (prefsCursors && diskCursors) {
-            for (const instanceId of Object.keys(prefsCursors)) {
-                const fromPrefs = prefsCursors[instanceId]
-                const fromDisk = diskCursors[instanceId]
-
-                if (
-                    fromDisk !== undefined &&
-                    fromPrefs !== fromDisk &&
-                    cursors[instanceId] === fromDisk
-                ) {
-                    this.log.warn(
-                        "Transport prefs save: HTTP outbox cursor from prefs was overwritten by disk merge (same key): instanceId={instanceId} prefsCursor={prefsCursor} diskCursor={diskCursor} mergedCursor={mergedCursor}",
-                        {
-                            instanceId,
-                            prefsCursor: fromPrefs,
-                            diskCursor: fromDisk,
-                            mergedCursor: cursors[instanceId],
-                        },
-                    )
-                }
-            }
-        }
+        const cursors =
+            prefsCursors !== undefined
+                ? { ...prefsCursors }
+                : { ...(diskCursors ?? {}) }
 
         const prefsEpochs = prefs.httpRestStoreEpochByInstanceId
         const diskEpochs = disk.httpRestStoreEpochByInstanceId
@@ -136,12 +123,21 @@ export class TransportPrefsProvider implements ITransportPrefsService {
             ...prefsEpochs,
         }
 
+        const prefsBounds = prefs.httpRestOutboxCursorBoundEpochByInstanceId
+        const diskBounds = disk.httpRestOutboxCursorBoundEpochByInstanceId
+        const bounds =
+            prefsBounds !== undefined
+                ? { ...prefsBounds }
+                : { ...(diskBounds ?? {}) }
+
         const merged: TransportPrefsPayloadV1 = {
             ...prefs,
             httpRestOutboxCursorByInstanceId:
                 Object.keys(cursors).length > 0 ? cursors : undefined,
             httpRestStoreEpochByInstanceId:
                 Object.keys(epochs).length > 0 ? epochs : undefined,
+            httpRestOutboxCursorBoundEpochByInstanceId:
+                Object.keys(bounds).length > 0 ? bounds : undefined,
         }
 
         const mk = this.auth.getMasterKey()
@@ -202,8 +198,13 @@ export class TransportPrefsProvider implements ITransportPrefsService {
             ...(p.httpRestOutboxCursorByInstanceId ?? {}),
         }
 
+        const nextBound: Record<string, string> = {
+            ...(p.httpRestOutboxCursorBoundEpochByInstanceId ?? {}),
+        }
+
         if (clearing) {
             delete next[instanceId]
+            delete nextBound[instanceId]
         } else {
             const prev = next[instanceId]
 
@@ -217,6 +218,14 @@ export class TransportPrefsProvider implements ITransportPrefsService {
 
             next[instanceId] = cursor
 
+            const epoch = p.httpRestStoreEpochByInstanceId?.[instanceId]
+
+            if (typeof epoch === "string" && epoch.length > 0) {
+                nextBound[instanceId] = epoch
+            } else {
+                delete nextBound[instanceId]
+            }
+
             this.log.debug(
                 "HTTP REST outbox cursor updated: instanceId={instanceId} prev={prev} cursor={cursor}",
                 { instanceId, prev, cursor },
@@ -225,8 +234,8 @@ export class TransportPrefsProvider implements ITransportPrefsService {
 
         await this.save({
             ...p,
-            httpRestOutboxCursorByInstanceId:
-                Object.keys(next).length > 0 ? next : undefined,
+            httpRestOutboxCursorByInstanceId: next,
+            httpRestOutboxCursorBoundEpochByInstanceId: nextBound,
         })
 
         if (!clearing && cursor !== null) {
@@ -264,20 +273,73 @@ export class TransportPrefsProvider implements ITransportPrefsService {
         }
 
         const disk = await this.load()
-        const prev = disk.httpRestStoreEpochByInstanceId?.[instanceId]
+        const prevRaw = disk.httpRestStoreEpochByInstanceId?.[instanceId]
+        const prevEpoch =
+            typeof prevRaw === "string" && prevRaw.length > 0 ? prevRaw : null
+
+        const cursorRaw = disk.httpRestOutboxCursorByInstanceId?.[instanceId]
+        const hasStoredOutboxCursor =
+            typeof cursorRaw === "string" && cursorRaw.length > 0
+
+        const boundRaw =
+            disk.httpRestOutboxCursorBoundEpochByInstanceId?.[instanceId]
+        const boundEpoch =
+            typeof boundRaw === "string" && boundRaw.length > 0 ? boundRaw : null
+
+        /**
+         * - Restart: we already had an epoch and the server sends a different one.
+         * - Upgrade/migration: we never stored an epoch (feature new) but still have an outbox
+         *   cursor from before — must clear once so polling works against a new seq space.
+         * - Stranded: stored epoch already matches the header (e.g. epoch was persisted earlier)
+         *   but the opaque cursor was never re-written under that epoch — clear once.
+         */
+        const strandedEpochCursor =
+            hasStoredOutboxCursor &&
+            prevEpoch !== null &&
+            prevEpoch === h &&
+            (boundEpoch === null || boundEpoch !== h)
+
         const shouldClearCursor =
-            typeof prev === "string" && prev.length > 0 && prev !== h
+            (prevEpoch !== null && prevEpoch !== h) ||
+            (prevEpoch === null && hasStoredOutboxCursor) ||
+            strandedEpochCursor
 
         const nextCursors = {
             ...(disk.httpRestOutboxCursorByInstanceId ?? {}),
         }
 
+        const nextBounds = {
+            ...(disk.httpRestOutboxCursorBoundEpochByInstanceId ?? {}),
+        }
+
         if (shouldClearCursor) {
             delete nextCursors[instanceId]
+            delete nextBounds[instanceId]
+
+            let clearReason:
+                | "epoch_changed"
+                | "first_epoch_with_existing_cursor"
+                | "cursor_bound_epoch_missing"
+                | "cursor_bound_epoch_mismatch"
+
+            if (prevEpoch !== null && prevEpoch !== h) {
+                clearReason = "epoch_changed"
+            } else if (prevEpoch === null && hasStoredOutboxCursor) {
+                clearReason = "first_epoch_with_existing_cursor"
+            } else if (boundEpoch === null) {
+                clearReason = "cursor_bound_epoch_missing"
+            } else {
+                clearReason = "cursor_bound_epoch_mismatch"
+            }
 
             this.log.info(
-                "HTTP REST store epoch changed; outbox cursor cleared: instanceId={instanceId} prevEpoch={prevEpoch} newEpoch={newEpoch}",
-                { instanceId, prevEpoch: prev, newEpoch: h },
+                "HTTP REST store epoch applied; outbox cursor cleared: instanceId={instanceId} prevEpoch={prevEpoch} newEpoch={newEpoch} reason={reason}",
+                {
+                    instanceId,
+                    prevEpoch,
+                    newEpoch: h,
+                    reason: clearReason,
+                },
             )
         }
 
@@ -288,8 +350,8 @@ export class TransportPrefsProvider implements ITransportPrefsService {
 
         await this.save({
             ...disk,
-            httpRestOutboxCursorByInstanceId:
-                Object.keys(nextCursors).length > 0 ? nextCursors : undefined,
+            httpRestOutboxCursorByInstanceId: nextCursors,
+            httpRestOutboxCursorBoundEpochByInstanceId: nextBounds,
             httpRestStoreEpochByInstanceId: nextEpochs,
         })
     }
