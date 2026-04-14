@@ -19,6 +19,20 @@ This document describes practical rules for AI agents working in `apps/web-app`.
   - `widgets` — complex UI logic, queries, DI integration;
   - `layouts` — page shells.
 
+## Crypt DB migrations (`di/crypt-db`)
+
+Do not “normalize on read” for legacy encrypted JSON. Evolve stored shapes through the **plain-model migration** pipeline:
+
+- **IDB layout** — bump `CRYPT_DB_VERSION` in `di/secure/constants.ts` and extend `CryptDb.open` → `onupgradeneeded` when stores or indexes change.
+- **Domain models** — live under `di/crypt-db/models/<entity>/` (`contact/`, `message/`, `identity/`). Each folder has `model_<entity>.ts`, `model_<entity>_v<version>.ts` as needed, and `index.ts`. Public API: `models/index.ts` → re-exported from `types-data.ts` for `@/di/crypt-db/types-data` imports.
+- **Encrypted record JSON** — bump the plain-model chain in `di/crypt-db/plain-model-migrations/registry.ts`:
+  1. Add/adjust `model_*_vN.ts` for the **source** version and `model_*.ts` for the **target** shape.
+  2. Add `steps/<name>.ts` implementing `(ctx) => Promise<void>` with **typed** transforms (e.g. `(raw as ContactPlainV1) => migrateContactV1ToV2(...)`) using `ctx.forEachContact` / `ctx.forEachMessage` / `ctx.forEachIdentity` as needed (extend `PlainModelMigrationContext` when adding new stores).
+  3. Append the step to `PLAIN_MODEL_MIGRATION_STEPS`. Step at index `k` upgrades stored data from version `k` to `k + 1`; `LATEST_PLAIN_MODEL_VERSION` is `steps.length`.
+  4. Keep each step **idempotent** for its input version so interrupted runs can safely retry.
+
+`CryptDb` calls `runPlainModelMigrations` after unlock; full imports set `plain_model_version` to the latest immediately. **Backup files** may still contain flat v1 JSON: `readBackupPlain` / `importFullState` normalize via `backup-payload-normalize.ts` before persisting.
+
 ## Required architecture rules
 
 1. **Pages (`app/routes/**/page.tsx`) must stay thin**  

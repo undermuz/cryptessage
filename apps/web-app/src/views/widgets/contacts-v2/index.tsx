@@ -617,7 +617,7 @@ export function ContactsWidgetHeroUI() {
                                             {c.displayName}
                                         </p>
                                         <p className="truncate text-xs text-default-500">
-                                            {c.cryptoProtocol}
+                                            {c.crypto.protocol}
                                         </p>
                                     </div>
                                     <span className="text-xs font-medium text-default-500 group-hover:text-foreground">

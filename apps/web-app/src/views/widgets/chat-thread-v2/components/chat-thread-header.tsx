@@ -49,8 +49,8 @@ export function ChatThreadHeaderHeroUI({
             return
         }
 
-        setHttpInboxId(contact.httpRestInboxRecipientKeyId ?? "")
-    }, [contact?.id, contact?.httpRestInboxRecipientKeyId])
+        setHttpInboxId(contact.transport?.httpRestInboxRecipientKeyId ?? "")
+    }, [contact?.id, contact?.transport?.httpRestInboxRecipientKeyId])
 
     if (!contact) {
         return null
@@ -62,15 +62,14 @@ export function ChatThreadHeaderHeroUI({
             id: contact.id,
             displayName: contact.displayName,
             createdAt: contact.createdAt,
-            cryptoProtocol: contact.cryptoProtocol,
-            publicKeyArmored: contact.publicKeyArmored,
-            compactX25519PublicKeyB64: contact.compactX25519PublicKeyB64,
-            compactEd25519PublicKeyB64: contact.compactEd25519PublicKeyB64,
-            transportInstanceOrder: contact.transportInstanceOrder
-                ? [...contact.transportInstanceOrder]
-                : undefined,
-            preferredTransportInstanceId: contact.preferredTransportInstanceId,
-            httpRestInboxRecipientKeyId: v.length > 0 ? v : undefined,
+            crypto: contact.crypto,
+            transport: {
+                instanceOrder: contact.transport?.instanceOrder
+                    ? [...contact.transport.instanceOrder]
+                    : undefined,
+                preferredInstanceId: contact.transport?.preferredInstanceId,
+                httpRestInboxRecipientKeyId: v.length > 0 ? v : undefined,
+            },
         }
 
         await conv.saveContact(next)
@@ -92,7 +91,7 @@ export function ChatThreadHeaderHeroUI({
                             {contact.displayName}
                         </h1>
                         <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-default-500">
-                            {contact.cryptoProtocol}
+                            {contact.crypto.protocol}
                         </p>
                     </div>
                 </div>

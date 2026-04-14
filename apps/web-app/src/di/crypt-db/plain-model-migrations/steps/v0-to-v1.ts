@@ -1,11 +1,14 @@
-import type { CryptoProtocolId } from "./crypto-protocol"
-import { DEFAULT_CRYPTO_PROTOCOL } from "./crypto-protocol"
-import type { ContactPlain, MessagePlain } from "./types-data"
+import type { CryptoProtocolId } from "../../crypto-protocol"
+import { DEFAULT_CRYPTO_PROTOCOL } from "../../crypto-protocol"
+import type { ContactPlainV1 } from "../../models/contact"
+import type { MessagePlainV1 } from "../../models/message"
+import type { PlainModelMigrationContext } from "../types"
 
-export function normalizeContact(c: ContactPlain): ContactPlain {
+function migrateContactV0ToV1(raw: unknown): ContactPlainV1 {
+    const c = raw as ContactPlainV1 & { publicKeyArmored?: string }
     const cryptoProtocol: CryptoProtocolId =
         c.cryptoProtocol ?? DEFAULT_CRYPTO_PROTOCOL
-    const legacy = c as ContactPlain & { publicKeyArmored?: string }
+    const legacy = c as ContactPlainV1 & { publicKeyArmored?: string }
 
     if (cryptoProtocol === "openpgp") {
         return {
@@ -21,7 +24,8 @@ export function normalizeContact(c: ContactPlain): ContactPlain {
     }
 }
 
-export function normalizeMessage(m: MessagePlain): MessagePlain {
+function migrateMessageV0ToV1(raw: unknown): MessagePlainV1 {
+    const m = raw as MessagePlainV1
     const cryptoProtocol: CryptoProtocolId =
         m.cryptoProtocol ?? DEFAULT_CRYPTO_PROTOCOL
 
@@ -44,4 +48,15 @@ export function normalizeMessage(m: MessagePlain): MessagePlain {
             }
             : {}),
     }
+}
+
+/**
+ * v0 → v1: default `cryptoProtocol`, OpenPGP `publicKeyArmored`, message
+ * `channelPayload` / outbound transport defaults (flat records).
+ */
+export async function migratePlainModelV0ToV1(
+    ctx: PlainModelMigrationContext,
+): Promise<void> {
+    await ctx.forEachContact((raw) => migrateContactV0ToV1(raw))
+    await ctx.forEachMessage((raw) => migrateMessageV0ToV1(raw))
 }

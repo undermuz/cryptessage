@@ -41,7 +41,16 @@ export default defineConfig(() => {
             VitePWA({
                 registerType: "autoUpdate",
                 injectRegister: "auto",
+                strategies: "injectManifest",
+                srcDir: "src",
+                filename: "sw.ts",
                 includeAssets: ["pwa-icon.svg"],
+                injectManifest: {
+                    globPatterns: [
+                        "**/*.{js,css,html,ico,svg,png,webp,woff2,wasm,webmanifest}",
+                    ],
+                    maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+                },
                 manifest: {
                     name: "cryptessage",
                     short_name: "cryptessage",
@@ -67,16 +76,6 @@ export default defineConfig(() => {
                             purpose: "maskable",
                         },
                     ],
-                },
-                workbox: {
-                    globPatterns: [
-                        "**/*.{js,css,html,ico,svg,png,webp,woff2,wasm,webmanifest}",
-                    ],
-                    maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
-                    navigateFallback: "index.html",
-                    cleanupOutdatedCaches: true,
-                    clientsClaim: true,
-                    skipWaiting: true,
                 },
                 devOptions: {
                     enabled: false,

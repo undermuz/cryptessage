@@ -147,7 +147,26 @@
         "visitCardCompact": "Compact v1 (binary)",
         "appVersion": "App version",
         "updateApp": "Update app",
-        "updateAppHint": "Clears the installed app cache and reloads so the latest version can load. Your vault stays on this device."
+        "updateAppHint": "Clears the installed app cache and reloads so the latest version can load. Your vault stays on this device.",
+        "push": {
+            "title": "Push notifications",
+            "hint": "Get alerts when the app is in the background. Requires HTTPS (or localhost) and a configured VAPID public key at build time.",
+            "enable": "Browser notifications",
+            "enableHint": "Subscribe on this device. You can turn this off anytime.",
+            "test": "Send test notification",
+            "testHint": "Shows a local notification to verify permission and the service worker.",
+            "payloadHint": "Servers should send JSON push payloads with optional fields: title, body, url. Use \"#/…\" when the app is built with hash routing (e.g. GitHub Pages); otherwise use paths relative to the app, such as \"./settings\".",
+            "unsupportedDetail": "Push is not available in this browser or context (use HTTPS, a supported browser, and a secure context).",
+            "noVapidDetail": "This build has no VITE_WEB_PUSH_PUBLIC_KEY. Add your VAPID public key to the environment to enable subscription.",
+            "permissionDeniedDetail": "Notifications are blocked for this site. Change permission in the browser address bar or site settings, then try again.",
+            "iosPwaHint": "On iPhone and iPad, add the app to the Home Screen and open it from there for the best push support.",
+            "error": {
+                "noVapid": "Push is not configured (missing VAPID public key).",
+                "unsupported": "Push notifications are not supported here.",
+                "permissionDenied": "Notification permission was denied.",
+                "generic": "Could not update push settings."
+            }
+        }
     },
     "transport": {
         "channelTabs": "Send via",

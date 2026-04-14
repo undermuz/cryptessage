@@ -32,8 +32,10 @@ describe("backup-format", () => {
             contacts: [],
             messages: [],
             identity: {
-                publicKeyArmored: "pub",
-                privateKeyArmored: "priv",
+                openpgp: {
+                    publicKeyArmored: "pub",
+                    privateKeyArmored: "priv",
+                },
             },
         }
         const blob = await encryptPlainPayload(key, plain)

@@ -146,7 +146,7 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
         }
 
         return openpgp.readPrivateKey({
-            armoredKey: id.privateKeyArmored,
+            armoredKey: id.openpgp.privateKeyArmored,
         })
     }
 
@@ -161,7 +161,7 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
         const payload: VisitCardJson = {
             v: VISIT_CARD_JSON_VERSION,
             n: displayName,
-            k: id.publicKeyArmored,
+            k: id.openpgp.publicKeyArmored,
         }
 
         return JSON.stringify(payload)
@@ -176,7 +176,7 @@ export class OpenPgpCryptoProvider implements IOpenPgpCryptoService {
         }
 
         const key = await openpgp.readKey({
-            armoredKey: id.publicKeyArmored,
+            armoredKey: id.openpgp.publicKeyArmored,
         })
         const keyBin = key.write()
         const nameUtf8 = new TextEncoder().encode(displayName)

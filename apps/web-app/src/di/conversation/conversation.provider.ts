@@ -6,7 +6,11 @@ import {
     CryptDbProvider,
     type CryptDbService,
 } from "@/di/crypt-db/types"
-import type { ContactPlain, MessagePlain } from "@/di/crypt-db/types-data"
+import type {
+    ContactPlain,
+    MessagePlain,
+    MessageTransportState,
+} from "@/di/crypt-db/types-data"
 import { isCompactVisitCardV1, decodeVisitCardV1 } from "@/di/compact-crypto/visit-card"
 import {
     MessagingCryptoService,
@@ -55,10 +59,14 @@ export class ConversationProvider implements IConversationService {
                     displayNameOverride?.trim() ||
                     v.displayName.trim() ||
                     "Contact",
-                cryptoProtocol: "compact_v1",
-                compactX25519PublicKeyB64: bytesToBase64(v.x25519PublicKey),
-                compactEd25519PublicKeyB64: bytesToBase64(v.ed25519PublicKey),
                 createdAt: Date.now(),
+                crypto: {
+                    protocol: "compact_v1",
+                    compact: {
+                        x25519PublicKeyB64: bytesToBase64(v.x25519PublicKey),
+                        ed25519PublicKeyB64: bytesToBase64(v.ed25519PublicKey),
+                    },
+                },
             }
         }
 
@@ -117,9 +125,11 @@ export class ConversationProvider implements IConversationService {
                 displayNameOverride?.trim() ||
                 parsed.displayName.trim() ||
                 "Contact",
-            cryptoProtocol: "openpgp",
-            publicKeyArmored: parsed.publicKeyArmored,
             createdAt: Date.now(),
+            crypto: {
+                protocol: "openpgp",
+                openpgp: { publicKeyArmored: parsed.publicKeyArmored },
+            },
         }
 
         await this.db.saveContact(key, c)
@@ -172,11 +182,13 @@ export class ConversationProvider implements IConversationService {
             id: crypto.randomUUID(),
             contactId,
             direction: "out",
-            cryptoProtocol: contact.cryptoProtocol,
-            channelPayload: bundle.channelStorage,
-            outboundSelfPayload: bundle.outboundSelfStorage,
             createdAt: Date.now(),
-            transportState: "sending",
+            crypto: {
+                protocol: contact.crypto.protocol,
+                channelPayload: bundle.channelStorage,
+                outboundSelfPayload: bundle.outboundSelfStorage,
+            },
+            transport: { state: "sending" },
         }
 
         await this.db.saveMessage(key, m)
@@ -185,7 +197,7 @@ export class ConversationProvider implements IConversationService {
 
     public async setOutboundTransportState(
         messageId: string,
-        state: MessagePlain["transportState"],
+        state: MessageTransportState | undefined,
         detail?: { kind?: string; status?: number },
     ): Promise<void> {
         const key = this.auth.getMasterKey()
@@ -197,11 +209,12 @@ export class ConversationProvider implements IConversationService {
 
         const next: MessagePlain = {
             ...existing,
-            ...(state ? { transportState: state } : {}),
-            ...(detail?.kind !== undefined ? { transportKind: detail.kind } : {}),
-            ...(detail?.status !== undefined
-                ? { transportStatus: detail.status }
-                : {}),
+            transport: {
+                ...existing.transport,
+                ...(state ? { state } : {}),
+                ...(detail?.kind !== undefined ? { kind: detail.kind } : {}),
+                ...(detail?.status !== undefined ? { status: detail.status } : {}),
+            },
         }
 
         await this.db.saveMessage(key, next)
@@ -292,9 +305,11 @@ export class ConversationProvider implements IConversationService {
             id: stableId,
             contactId,
             direction: "in",
-            cryptoProtocol,
-            channelPayload,
             createdAt,
+            crypto: {
+                protocol: cryptoProtocol,
+                channelPayload,
+            },
         }
 
         await this.db.saveMessage(key, m)

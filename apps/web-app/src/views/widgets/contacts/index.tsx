@@ -535,7 +535,7 @@ export function ContactsWidget() {
                                     {c.displayName}
                                 </span>
                                 <span className="ml-2 text-xs text-muted-foreground">
-                                    ({c.cryptoProtocol})
+                                    ({c.crypto.protocol})
                                 </span>
                             </li>
                         ))}

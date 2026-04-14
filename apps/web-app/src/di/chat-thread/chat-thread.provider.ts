@@ -461,7 +461,7 @@ export class ChatThreadProvider implements IChatThreadService {
             const r = await this.messaging.decryptIncoming(
                 contact,
                 data.raw,
-                contact.cryptoProtocol,
+                contact.crypto.protocol,
             )
 
             if (signal.aborted) {

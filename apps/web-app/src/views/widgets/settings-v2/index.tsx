@@ -23,6 +23,7 @@ import {
 import { reloadAppForUpdate } from "@/lib/pwa-reload"
 
 import { SettingsTransportsHeroUI } from "./settings-transports.heroui"
+import { SettingsPushHeroUI } from "./settings-push.heroui"
 
 export function SettingsWidgetHeroUI() {
     const t = useT()
@@ -224,6 +225,8 @@ export function SettingsWidgetHeroUI() {
             </Surface>
 
             <SettingsTransportsHeroUI />
+
+            <SettingsPushHeroUI />
 
             <Surface className="space-y-3 rounded-3xl p-5" variant="secondary">
                 <h2 className="text-sm font-semibold">{t("settings.fingerprint")}</h2>

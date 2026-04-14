@@ -52,16 +52,16 @@ export class MessagingCryptoProvider implements IMessagingCryptoService {
         contact: ContactPlain,
         plaintext: string,
     ): Promise<EncryptedOutgoingBundle> {
-        if (contact.cryptoProtocol === "compact_v1") {
+        if (contact.crypto.protocol === "compact_v1") {
             const id = await this.requireIdentity()
 
-            if (!id.compactIdentity) {
+            if (!id.compact) {
                 throw new Error("Compact identity not initialized")
             }
 
-            const xSec = base64ToBytes(id.compactIdentity.x25519SecretKeyB64)
-            const edSec = base64ToBytes(id.compactIdentity.ed25519SecretKeyB64)
-            const xb64 = contact.compactX25519PublicKeyB64
+            const xSec = base64ToBytes(id.compact.x25519SecretKeyB64)
+            const edSec = base64ToBytes(id.compact.ed25519SecretKeyB64)
+            const xb64 = contact.crypto.compact.x25519PublicKeyB64
 
             if (!xb64) {
                 throw new Error("Contact missing compact X25519 public key")
@@ -74,7 +74,7 @@ export class MessagingCryptoProvider implements IMessagingCryptoService {
                 xSec,
                 edSec,
             )
-            const selfX = base64ToBytes(id.compactIdentity.x25519PublicKeyB64)
+            const selfX = base64ToBytes(id.compact.x25519PublicKeyB64)
             const selfPacket = encryptCompactMessage(
                 plaintext,
                 selfX,
@@ -89,7 +89,11 @@ export class MessagingCryptoProvider implements IMessagingCryptoService {
             }
         }
 
-        const pk = contact.publicKeyArmored
+        if (contact.crypto.protocol !== "openpgp") {
+            throw new Error("Expected OpenPGP contact")
+        }
+
+        const pk = contact.crypto.openpgp.publicKeyArmored
 
         if (!pk) {
             throw new Error("Contact has no OpenPGP public key")
@@ -102,7 +106,7 @@ export class MessagingCryptoProvider implements IMessagingCryptoService {
         const identity = await this.requireIdentity()
         const selfArmored = await this.pgp.encryptAndSignForContact(
             plaintext,
-            identity.publicKeyArmored,
+            identity.openpgp.publicKeyArmored,
         )
 
         return {
@@ -120,16 +124,20 @@ export class MessagingCryptoProvider implements IMessagingCryptoService {
         if (messageProtocol === "compact_v1") {
             const id = await this.requireIdentity()
 
-            if (!id.compactIdentity) {
+            if (!id.compact) {
                 throw new Error("Compact identity not initialized")
+            }
+
+            if (contact.crypto.protocol !== "compact_v1") {
+                throw new Error("Expected compact_v1 contact")
             }
 
             const bytes =
                 typeof channelPayload === "string"
                     ? base64ToBytes(channelPayload.trim())
                     : unwrapMessageQrPayload(channelPayload)
-            const rx = base64ToBytes(id.compactIdentity.x25519SecretKeyB64)
-            const edB64 = contact.compactEd25519PublicKeyB64
+            const rx = base64ToBytes(id.compact.x25519SecretKeyB64)
+            const edB64 = contact.crypto.compact.ed25519PublicKeyB64
 
             if (!edB64) {
                 throw new Error("Contact missing compact Ed25519 public key")
@@ -146,7 +154,12 @@ export class MessagingCryptoProvider implements IMessagingCryptoService {
                 : await this.pgp.ciphertextToArmored(
                     unwrapMessageQrPayload(channelPayload),
                 )
-        const pk = contact.publicKeyArmored
+
+        if (contact.crypto.protocol !== "openpgp") {
+            throw new Error("Expected OpenPGP contact")
+        }
+
+        const pk = contact.crypto.openpgp.publicKeyArmored
 
         if (!pk) {
             throw new Error("Contact has no OpenPGP public key")
@@ -198,7 +211,7 @@ export class MessagingCryptoProvider implements IMessagingCryptoService {
     ): Promise<ScannedPayloadNormalized & { contactId: string } | null> {
         const normalized = await this.normalizeInboundPayload(raw)
         const sameProto = contacts.filter(
-            (c) => c.cryptoProtocol === normalized.cryptoProtocol,
+            (c) => c.crypto.protocol === normalized.cryptoProtocol,
         )
 
         for (const c of sameProto) {
@@ -229,20 +242,20 @@ export class MessagingCryptoProvider implements IMessagingCryptoService {
         const id = await this.requireIdentity()
 
         if (messageProtocol === "compact_v1") {
-            if (!id.compactIdentity) {
+            if (!id.compact) {
                 throw new Error("Compact identity not initialized")
             }
 
             const bytes = base64ToBytes(channelPayload.trim())
-            const rx = base64ToBytes(id.compactIdentity.x25519SecretKeyB64)
-            const selfEd = base64ToBytes(id.compactIdentity.ed25519PublicKeyB64)
+            const rx = base64ToBytes(id.compact.x25519SecretKeyB64)
+            const selfEd = base64ToBytes(id.compact.ed25519PublicKeyB64)
 
             return decryptCompactMessage(bytes, rx, selfEd)
         }
 
         return this.pgp.decryptAndVerify(
             channelPayload.trim(),
-            id.publicKeyArmored,
+            id.openpgp.publicKeyArmored,
         )
     }
 }

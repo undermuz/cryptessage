@@ -54,10 +54,13 @@ export function ChatSendEncryptedModalHeroUI(props: {
 
         return {
             ...contact,
-            transportInstanceOrder: contact.transportInstanceOrder
-                ? [...contact.transportInstanceOrder]
-                : undefined,
-        } as ContactPlain
+            transport: {
+                ...contact.transport,
+                instanceOrder: contact.transport?.instanceOrder
+                    ? [...contact.transport.instanceOrder]
+                    : undefined,
+            },
+        }
     }, [contact])
 
     const transportMgr = useDi<IChatTransportManager>(ChatTransportManager)
@@ -184,7 +187,10 @@ export function ChatSendEncryptedModalHeroUI(props: {
         try {
             await conv.saveContact({
                 ...contactPlain,
-                transportInstanceOrder: [...localOrder],
+                transport: {
+                    ...contactPlain.transport,
+                    instanceOrder: [...localOrder],
+                },
             })
 
             onNotify(t("transport.orderSaved"))

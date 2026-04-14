@@ -17,6 +17,7 @@ import { AuthModule } from "./auth/module"
 import { IdentityModule } from "./identity/module"
 import { OpenPgpCryptoModule } from "./openpgp-crypto/module"
 import { CryptoPrefsModule } from "./crypto-prefs/module"
+import { PushNotificationsModule } from "./push-notifications/module"
 import { MessagingCryptoModule } from "./messaging-crypto/module"
 import { VaultBackupModule } from "./vault-backup/module"
 import { ConversationModule } from "./conversation/module"
@@ -46,6 +47,7 @@ export const createDiContainer = () => {
     di.load(IdentityModule)
     di.load(OpenPgpCryptoModule)
     di.load(CryptoPrefsModule)
+    di.load(PushNotificationsModule)
     di.load(MessagingCryptoModule)
     di.load(VaultBackupModule)
     di.load(ConversationModule)

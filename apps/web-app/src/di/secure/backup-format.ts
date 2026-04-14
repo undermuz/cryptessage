@@ -1,6 +1,7 @@
 import { bytesToBase64, base64ToBytes } from "./encoding"
 import { aesGcmEncrypt, decryptUtf8, type EncryptedBlob } from "./aes-gcm"
 import { deriveAesGcmKey } from "./kdf"
+import { normalizeBackupPlainPayload } from "../crypt-db/backup-payload-normalize"
 import type { ContactPlain, IdentityPlain, MessagePlain } from "../crypt-db/types-data"
 
 export const BACKUP_FORMAT_VERSION = 1 as const
@@ -70,11 +71,19 @@ export async function readBackupPlain(
         ivB64: file.ivB64,
         ciphertextB64: file.ciphertextB64,
     })
-    const plain = JSON.parse(utf8) as BackupPlainPayload
+    const raw = JSON.parse(utf8) as unknown
 
-    if (!plain.identity || !Array.isArray(plain.contacts) || !Array.isArray(plain.messages)) {
+    if (
+        !raw ||
+        typeof raw !== "object" ||
+        !("identity" in raw) ||
+        !Array.isArray((raw as BackupPlainPayload).contacts) ||
+        !Array.isArray((raw as BackupPlainPayload).messages)
+    ) {
         throw new Error("Invalid backup payload")
     }
+
+    const plain = normalizeBackupPlainPayload(raw)
 
     return { salt, plain }
 }

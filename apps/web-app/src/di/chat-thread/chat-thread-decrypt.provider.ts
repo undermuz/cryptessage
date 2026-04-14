@@ -27,7 +27,7 @@ export class ChatThreadDecryptProvider implements IChatThreadDecryptService {
         }
 
         if (m.direction === "out") {
-            const selfPl = m.outboundSelfPayload
+            const selfPl = m.crypto.outboundSelfPayload
 
             if (!selfPl) {
                 return { ok: false, err: "missing self payload" }
@@ -36,7 +36,7 @@ export class ChatThreadDecryptProvider implements IChatThreadDecryptService {
             try {
                 const r = await this.messaging.decryptOutboundSelf(
                     selfPl,
-                    m.cryptoProtocol,
+                    m.crypto.protocol,
                 )
 
                 if (signal?.aborted) {
@@ -54,8 +54,8 @@ export class ChatThreadDecryptProvider implements IChatThreadDecryptService {
         try {
             const r = await this.messaging.decryptIncoming(
                 contact,
-                m.channelPayload,
-                m.cryptoProtocol,
+                m.crypto.channelPayload,
+                m.crypto.protocol,
             )
 
             if (signal?.aborted) {

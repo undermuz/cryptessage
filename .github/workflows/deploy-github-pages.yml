@@ -3,6 +3,8 @@ name: Deploy web-app to GitHub Pages
 on:
   push:
     branches: [master, main]
+    paths:
+      - "apps/web-app/**"
   workflow_dispatch:
 
 permissions:

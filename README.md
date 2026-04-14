@@ -88,6 +88,14 @@ Implementation pointers (web app):
 - `apps/web-app/src/di/openpgp-crypto/openpgp-crypto.provider.ts` — OpenPGP encrypt/sign + decrypt/verify + visit cards (`CMV2`).
 - `apps/web-app/src/di/compact-crypto/compact-message.ts` and `apps/web-app/src/di/compact-crypto/visit-card.ts` — `compact_v1` packet/visit-card layout.
 
+### IndexedDB: schema vs plain-model migrations
+
+Two separate version lines matter for the vault database (`apps/web-app/src/di/crypt-db`):
+
+1. **IDB schema** — `CRYPT_DB_VERSION` in `apps/web-app/src/di/secure/constants.ts`. Bump it only when object stores or indexes change; handle structural work in `CryptDb.open` → `onupgradeneeded`.
+
+2. **Plain model** — version stored in the `meta` store under `plain_model_version`. It tracks the shape of **decrypted** JSON for contacts/messages/identity. Current TypeScript models live in `apps/web-app/src/di/crypt-db/models/<name>/` (e.g. `contact/`, `message/`, `identity/`), with `model_*.ts` files per entity; older persisted shapes use `model_*_v<version>.ts` in the same folder. When the shape changes, add a migration step in `plain-model-migrations/registry.ts` (see `plain-model-migrations/steps/`). `CryptDb` runs `runPlainModelMigrations` after unlock. Backup JSON may still be flat (v1): `backup-payload-normalize.ts` upgrades it on restore.
+
 This is **not** a substitute for a full security audit. Threat model assumes a trusted browser runtime and no malware on the device.
 
 ## Adding contacts correctly

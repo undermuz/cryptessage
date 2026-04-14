@@ -13,6 +13,10 @@ import {
     type ILocalStorage,
     LocalStorageProvider,
 } from "@/di/utils/local-storage/types"
+import {
+    PushNotificationsService,
+    type IPushNotificationsService,
+} from "@/di/push-notifications/types"
 
 import { ConfigLoggerProvider } from "../config/config-logger.provider"
 
@@ -23,6 +27,9 @@ import type { ILogger } from "../types/logger"
 export class App implements IAppProvider {
     @inject(LocalStorageProvider)
     private readonly localStorage: ILocalStorage
+
+    @inject(PushNotificationsService)
+    private readonly pushNotifications: IPushNotificationsService
 
     @inject(I18nProvider)
     public readonly i18nProvider: I18nService
@@ -71,6 +78,10 @@ export class App implements IAppProvider {
         })
 
         this.logger.info("[init] local storage ✅")
+
+        await this.pushNotifications.initialize()
+
+        this.logger.info("[init] push notifications ✅")
 
         await this.cacheService.initialize({
             prefix: "cache_v1:",

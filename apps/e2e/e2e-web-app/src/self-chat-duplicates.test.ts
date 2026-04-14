@@ -31,6 +31,15 @@ function pickFreePort(): Promise<number> {
     })
 }
 
+/** Matches `chat.messagePlaceholder` in web-app i18n. */
+const MESSAGE_COMPOSER_PLACEHOLDER = "Type a message…"
+
+const PASTE_VISIT_TRIGGER =
+    "Paste visit card (JSON), armored public key block, or scan QR — not the fingerprint hex"
+
+const VISIT_CARD_PASTE_PLACEHOLDER =
+    "JSON visit card, or full -----BEGIN PGP PUBLIC KEY BLOCK----- (not fingerprint hex)"
+
 function httpServerConfig(): ServerEnv {
     return {
         port: 0,
@@ -61,8 +70,6 @@ async function startWebApp(): Promise<{ server: ViteDevServer; baseUrl: string }
             host: "127.0.0.1",
             port,
             strictPort: true,
-            // HMR/React Refresh sometimes double-injects in test harnesses.
-            // We only need a stable app shell for e2e flows.
             hmr: false,
         },
     })
@@ -83,7 +90,6 @@ async function startWebApp(): Promise<{ server: ViteDevServer; baseUrl: string }
 async function createVault(page: Page): Promise<void> {
     await page.goto("/unlock", { waitUntil: "domcontentloaded" })
 
-    // Ensure Create tab is active (fresh DB should auto-select it, but wait is flaky).
     const createTab = page.getByRole("tab", { name: "Create vault" })
 
     if (await createTab.isVisible().catch(() => false)) {
@@ -97,22 +103,22 @@ async function createVault(page: Page): Promise<void> {
     await page.getByPlaceholder("Repeat passphrase").fill("passpasspass")
     await page.getByRole("button", { name: "Create and continue" }).click()
 
-    await page.waitForSelector("text=Settings", { timeout: 15_000 })
+    await page.getByRole("link", { name: "Settings" }).waitFor({ timeout: 15_000 })
 }
 
 async function addHttpRestProfile(
     page: Page,
     opts: { baseUrl: string; outboxSelfKeyId: string },
 ): Promise<void> {
-    await page.click("text=Settings")
-    await page.waitForSelector("text=Message transports", { timeout: 15_000 })
-
-    await page.selectOption('select >> xpath=.. >> text="http_rest_v1"', {
-        label: "http_rest_v1",
-    }).catch(async () => {
-        // Fallback: select by label if DOM changes.
-        await page.getByLabel("Type").selectOption("http_rest_v1")
+    await page.getByRole("link", { name: "Settings" }).click()
+    await page.getByText("Message transports", { exact: false }).waitFor({
+        timeout: 15_000,
     })
+
+    const addForm = page.getByText("New profile", { exact: true }).locator("..")
+
+    await addForm.locator("select").waitFor({ state: "visible", timeout: 10_000 })
+    await addForm.locator("select").selectOption("http_rest_v1")
 
     const config = {
         baseUrl: opts.baseUrl,
@@ -122,45 +128,60 @@ async function addHttpRestProfile(
         timeoutMs: 15_000,
     }
 
-    await page.getByLabel("Config (JSON object)").fill(JSON.stringify(config, null, 2))
+    await addForm
+        .getByRole("textbox", { name: "Config (JSON object)" })
+        .fill(JSON.stringify(config, null, 2))
     await page.getByRole("button", { name: "Add to list" }).click()
     await page.getByRole("button", { name: "Save transport settings" }).click()
-    await page.waitForSelector("text=Transport settings saved.", { timeout: 15_000 })
+    await page.getByText("Transport settings saved.", { exact: false }).waitFor({
+        timeout: 15_000,
+    })
 }
 
+/**
+ * Default visit card format is Compact v1 (base64), not OpenPGP JSON — read payload from the
+ * armored preview textarea after expanding its disclosure, then paste under “Add contact”.
+ */
 async function addSelfContactFromVisitCard(page: Page): Promise<void> {
-    await page.click("text=Contacts")
-    await page.waitForSelector("h1:text-is(\"Contacts\")", { timeout: 15_000 })
+    await page.getByRole("link", { name: "Contacts" }).click()
+    await page.getByRole("heading", { name: "Contacts", exact: true }).waitFor({
+        timeout: 15_000,
+    })
 
     await page.getByRole("button", { name: "Show QR" }).click()
-    await page.getByRole("button", { name: "Copy visit card (JSON)" }).click()
 
-    const visitJson = await page
-        .getByRole("textbox", { name: "Copy visit card (JSON)" })
-        .inputValue()
+    const copyCardTrigger = page.getByRole("button", { name: "Copy visit card (JSON)" }).first()
 
-    expect(visitJson.trim().startsWith("{")).toBe(true)
+    await copyCardTrigger.waitFor({ state: "visible", timeout: 30_000 })
+    await copyCardTrigger.click()
 
-    await page.getByRole("button", {
-        name: "Paste visit card (JSON), armored public key block, or scan QR — not the fingerprint hex",
-    }).click()
+    const visitCardTextbox = page.getByRole("textbox", {
+        name: "Copy visit card (JSON)",
+    })
 
-    await page
-        .getByPlaceholder(
-            "JSON visit card, or full -----BEGIN PGP PUBLIC KEY BLOCK----- (not fingerprint hex)",
-        )
-        .fill(visitJson)
+    await visitCardTextbox.waitFor({ state: "visible", timeout: 15_000 })
 
+    const visitPayload = await visitCardTextbox.inputValue()
+
+    expect(visitPayload.trim().length).toBeGreaterThan(20)
+
+    await page.getByRole("button", { name: PASTE_VISIT_TRIGGER }).click()
+
+    await page.getByPlaceholder(VISIT_CARD_PASTE_PLACEHOLDER).fill(visitPayload)
     await page.getByRole("button", { name: "Add contact" }).click()
 
-    await page.waitForSelector("text=E2E User", { timeout: 15_000 })
+    await page.getByText("E2E User", { exact: false }).first().waitFor({
+        timeout: 15_000,
+    })
 }
 
 async function openChat(page: Page): Promise<void> {
-    await page.click("text=Chats")
-    await page.waitForSelector("h1:text-is(\"Chats\")", { timeout: 15_000 })
+    await page.getByRole("link", { name: "Chats" }).click()
+    await page.getByRole("heading", { name: "Chats", exact: true }).waitFor({
+        timeout: 15_000,
+    })
 
-    await page.getByRole("link", { name: /E2E User/ }).first().click()
+    await page.getByRole("link", { name: /E2E User/i }).first().click()
     await page
         .getByPlaceholder("Recipient key id for http_rest_v1")
         .waitFor({ timeout: 15_000 })
@@ -173,8 +194,6 @@ async function waitForLocatorCount(
 ): Promise<void> {
     const started = Date.now()
 
-    // Simple polling helper (Vitest expect doesn't include Playwright matchers).
-    // We keep it tiny to avoid introducing extra deps.
     while (true) {
         const n = await locator.count()
 
@@ -240,20 +259,20 @@ describe("e2e-web-app: http_rest_v1 self-chat duplicates", () => {
 
         const msg = `hello-e2e-${Date.now()}`
 
-        await page.getByLabel("Type a message…").fill(msg)
+        await page
+            .getByPlaceholder(MESSAGE_COMPOSER_PLACEHOLDER)
+            .waitFor({ state: "visible", timeout: 15_000 })
+        await page.getByPlaceholder(MESSAGE_COMPOSER_PLACEHOLDER).fill(msg)
         await page.keyboard.press("Enter")
 
-        // Happy path should not open the encrypted send modal.
         await waitForLocatorCount(page.locator("text=Encrypted message (QR & text)"), 0, 2000)
 
-        // Should not show "no transport" toast.
         await waitForLocatorCount(
             page.locator("text=No transport could handle outgoing message"),
             0,
             2000,
         )
 
-        // Wait until the outbound bubble is marked as sent (check icon).
         const outboundBubble = page
             .locator(`xpath=//li[contains(@class,'justify-end')][contains(., ${JSON.stringify(msg)})]`)
             .first()
@@ -267,16 +286,16 @@ describe("e2e-web-app: http_rest_v1 self-chat duplicates", () => {
     })
 
     it("does not duplicate message in self-chat after repeated receives", async () => {
-        // Reuse existing vault, transport, and contact; just send a new message.
         const msg = `dup-e2e-${Date.now()}`
 
-        await page.getByLabel("Type a message…").fill(msg)
+        await page
+            .getByPlaceholder(MESSAGE_COMPOSER_PLACEHOLDER)
+            .waitFor({ state: "visible", timeout: 15_000 })
+        await page.getByPlaceholder(MESSAGE_COMPOSER_PLACEHOLDER).fill(msg)
         await page.keyboard.press("Enter")
 
-        // Give background polling a few cycles to deliver inbound.
         await page.waitForTimeout(8000)
 
-        // Give background polling a few cycles to deliver inbound.
         const inboundHits = await page
             .locator(
                 `xpath=//li[contains(@class,'justify-start')][contains(., ${JSON.stringify(
@@ -292,10 +311,7 @@ describe("e2e-web-app: http_rest_v1 self-chat duplicates", () => {
             )
             .count()
 
-        // In self-chat it's expected to see 2 items total: one outbound (saved on send)
-        // and one inbound (fetched from outbox). The bug is when inbound repeats.
         expect(outboundHits).toBe(1)
         expect(inboundHits).toBe(1)
     })
 })
-

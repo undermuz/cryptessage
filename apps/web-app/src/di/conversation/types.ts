@@ -1,5 +1,9 @@
 import type { CryptoProtocolId } from "@/di/crypt-db/crypto-protocol"
-import type { ContactPlain, MessagePlain } from "@/di/crypt-db/types-data"
+import type {
+    ContactPlain,
+    MessagePlain,
+    MessageTransportState,
+} from "@/di/crypt-db/types-data"
 import type { VisitCardRawPayload } from "@/di/openpgp-crypto/types"
 import type { EncryptedOutgoingBundle } from "@/di/messaging-crypto/types"
 
@@ -27,7 +31,7 @@ export type IConversationService = {
     ): Promise<MessagePlain>
     setOutboundTransportState(
         messageId: string,
-        state: MessagePlain["transportState"],
+        state: MessageTransportState | undefined,
         detail?: { kind?: string; status?: number },
     ): Promise<void>
     saveInboundPayload(

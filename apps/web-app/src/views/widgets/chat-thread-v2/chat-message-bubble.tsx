@@ -80,7 +80,7 @@ export function ChatMessageBubble({
     useSnapshot(chat.state)
 
     const mine = item.message.direction === "out"
-    const transportState = item.message.transportState
+    const transportState = item.message.transport?.state
 
     return (
         <div

@@ -42,9 +42,11 @@ export class IdentityProvider implements IIdentityService {
         })
 
         await this.db.saveIdentity(key, {
-            publicKeyArmored: publicKey,
-            privateKeyArmored: privateKey,
-            compactIdentity: generateCompactIdentitySecrets(),
+            openpgp: {
+                publicKeyArmored: publicKey,
+                privateKeyArmored: privateKey,
+            },
+            compact: generateCompactIdentitySecrets(),
         })
     }
 
@@ -56,13 +58,13 @@ export class IdentityProvider implements IIdentityService {
             return
         }
 
-        if (existing.compactIdentity) {
+        if (existing.compact) {
             return
         }
 
         await this.db.saveIdentity(key, {
             ...existing,
-            compactIdentity: generateCompactIdentitySecrets(),
+            compact: generateCompactIdentitySecrets(),
         })
     }
 
@@ -74,7 +76,7 @@ export class IdentityProvider implements IIdentityService {
             throw new Error("No identity")
         }
 
-        return id.publicKeyArmored
+        return id.openpgp.publicKeyArmored
     }
 
     public async getFingerprintHex(): Promise<string> {
@@ -105,12 +107,12 @@ export class IdentityProvider implements IIdentityService {
         const key = this.auth.getMasterKey()
         const id = await this.db.getIdentity(key)
 
-        if (!id?.compactIdentity) {
+        if (!id?.compact) {
             throw new Error("No compact identity")
         }
 
-        const xPub = base64ToBytes(id.compactIdentity.x25519PublicKeyB64)
-        const edPub = base64ToBytes(id.compactIdentity.ed25519PublicKeyB64)
+        const xPub = base64ToBytes(id.compact.x25519PublicKeyB64)
+        const edPub = base64ToBytes(id.compact.ed25519PublicKeyB64)
 
         return encodeVisitCardV1(displayName.trim() || "User", xPub, edPub)
     }

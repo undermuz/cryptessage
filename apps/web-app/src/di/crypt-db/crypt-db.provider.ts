@@ -3,8 +3,14 @@ import { injectable } from "inversify"
 import { CRYPT_DB_NAME, CRYPT_DB_VERSION } from "@/di/secure/constants"
 import { bytesToBase64, base64ToBytes } from "@/di/secure/encoding"
 import { decryptUtf8, encryptUtf8, type EncryptedBlob } from "@/di/secure/aes-gcm"
+import { normalizeBackupPlainPayload } from "./backup-payload-normalize"
 import type { CryptDbService } from "./types"
-import { normalizeContact, normalizeMessage } from "./model-normalize"
+import {
+    KEY_PLAIN_MODEL_VERSION,
+    LATEST_PLAIN_MODEL_VERSION,
+    PLAIN_MODEL_MIGRATION_STEPS,
+    runPlainModelMigrations,
+} from "./plain-model-migrations"
 import type { ContactPlain, IdentityPlain, MessagePlain } from "./types-data"
 
 const STORE_META = "meta"
@@ -64,6 +70,117 @@ export class CryptDb implements CryptDbService {
         return this.db
     }
 
+    private async readPlainModelVersion(idb: IDBDatabase): Promise<number> {
+        const raw = await this.txGet<unknown>(
+            idb,
+            STORE_META,
+            KEY_PLAIN_MODEL_VERSION,
+        )
+
+        if (raw === undefined || raw === null) {
+            return 0
+        }
+
+        if (typeof raw === "number" && Number.isFinite(raw)) {
+            return raw
+        }
+
+        return 0
+    }
+
+    private async setPlainModelVersion(
+        idb: IDBDatabase,
+        version: number,
+    ): Promise<void> {
+        await this.txPutMeta(idb, KEY_PLAIN_MODEL_VERSION, version)
+    }
+
+    private createPlainModelMigrationContext(
+        masterKey: CryptoKey,
+        idb: IDBDatabase,
+    ) {
+        return {
+            forEachContact: async (
+                map: (raw: unknown) => unknown | Promise<unknown>,
+            ) => {
+                const rows = await this.getAll<ContactRow>(idb, STORE_CONTACTS)
+
+                for (const row of rows) {
+                    const json = await decryptUtf8(masterKey, row.blob)
+                    const next = await map(JSON.parse(json) as unknown)
+                    const blob = await encryptUtf8(
+                        masterKey,
+                        JSON.stringify(next),
+                    )
+
+                    await this.txPutRow(idb, STORE_CONTACTS, {
+                        id: row.id,
+                        blob,
+                    })
+                }
+            },
+            forEachMessage: async (
+                map: (raw: unknown) => unknown | Promise<unknown>,
+            ) => {
+                const rows = await this.getAll<MessageRow>(idb, STORE_MESSAGES)
+
+                for (const row of rows) {
+                    const json = await decryptUtf8(masterKey, row.blob)
+                    const next = await map(JSON.parse(json) as unknown)
+                    const blob = await encryptUtf8(
+                        masterKey,
+                        JSON.stringify(next),
+                    )
+
+                    await this.txPutRow(idb, STORE_MESSAGES, {
+                        id: row.id,
+                        contactId: row.contactId,
+                        blob,
+                    })
+                }
+            },
+            forEachIdentity: async (
+                map: (raw: unknown) => unknown | Promise<unknown>,
+            ) => {
+                const row = await this.txGet<EncryptedRow>(
+                    idb,
+                    STORE_IDENTITY,
+                    KEY_PROFILE,
+                )
+
+                if (!row) {
+                    return
+                }
+
+                const json = await decryptUtf8(masterKey, row.blob)
+                const next = await map(JSON.parse(json) as unknown)
+                const blob = await encryptUtf8(masterKey, JSON.stringify(next))
+
+                await this.txPutByKey(idb, STORE_IDENTITY, KEY_PROFILE, { blob })
+            },
+        }
+    }
+
+    /**
+     * Runs the plain-model migration chain (encrypted JSON in contacts/messages stores).
+     * Safe to call repeatedly; each step must be idempotent for its source version.
+     */
+    private async ensurePlainModelMigrated(
+        masterKey: CryptoKey,
+    ): Promise<void> {
+        await this.open()
+
+        const idb = this.requireDb()
+        const currentVersion = await this.readPlainModelVersion(idb)
+
+        await runPlainModelMigrations({
+            currentVersion,
+            setVersion: (v) => this.setPlainModelVersion(idb, v),
+            context: this.createPlainModelMigrationContext(masterKey, idb),
+            steps: PLAIN_MODEL_MIGRATION_STEPS,
+        })
+    }
+
     public async readSalt(): Promise<Uint8Array | null> {
         await this.open()
 
@@ -107,7 +224,7 @@ export class CryptDb implements CryptDbService {
     }
 
     public async getIdentity(masterKey: CryptoKey): Promise<IdentityPlain | null> {
-        await this.open()
+        await this.ensurePlainModelMigrated(masterKey)
 
         const idb = this.requireDb()
         const row = await this.txGet<EncryptedRow>(
@@ -129,7 +246,7 @@ export class CryptDb implements CryptDbService {
         masterKey: CryptoKey,
         identity: IdentityPlain,
     ): Promise<void> {
-        await this.open()
+        await this.ensurePlainModelMigrated(masterKey)
 
         const idb = this.requireDb()
         const blob = await encryptUtf8(masterKey, JSON.stringify(identity))
@@ -138,7 +255,7 @@ export class CryptDb implements CryptDbService {
     }
 
     public async listContacts(masterKey: CryptoKey): Promise<ContactPlain[]> {
-        await this.open()
+        await this.ensurePlainModelMigrated(masterKey)
 
         const idb = this.requireDb()
         const rows = await this.getAll<ContactRow>(idb, STORE_CONTACTS)
@@ -147,14 +264,14 @@ export class CryptDb implements CryptDbService {
         for (const row of rows) {
             const json = await decryptUtf8(masterKey, row.blob)
 
-            out.push(normalizeContact(JSON.parse(json) as ContactPlain))
+            out.push(JSON.parse(json) as ContactPlain)
         }
 
         return out.sort((a, b) => b.createdAt - a.createdAt)
     }
 
     public async saveContact(masterKey: CryptoKey, c: ContactPlain): Promise<void> {
-        await this.open()
+        await this.ensurePlainModelMigrated(masterKey)
 
         const idb = this.requireDb()
         const blob = await encryptUtf8(masterKey, JSON.stringify(c))
@@ -163,7 +280,7 @@ export class CryptDb implements CryptDbService {
     }
 
     public async deleteContact(masterKey: CryptoKey, id: string): Promise<void> {
-        await this.open()
+        await this.ensurePlainModelMigrated(masterKey)
 
         const idb = this.requireDb()
 
@@ -180,7 +297,7 @@ export class CryptDb implements CryptDbService {
         masterKey: CryptoKey,
         contactId: string,
     ): Promise<MessagePlain[]> {
-        await this.open()
+        await this.ensurePlainModelMigrated(masterKey)
 
         const idb = this.requireDb()
         const rows = await this.getByIndex<MessageRow>(
@@ -194,7 +311,7 @@ export class CryptDb implements CryptDbService {
         for (const row of rows) {
             const json = await decryptUtf8(masterKey, row.blob)
 
-            out.push(normalizeMessage(JSON.parse(json) as MessagePlain))
+            out.push(JSON.parse(json) as MessagePlain)
         }
 
         return out.sort((a, b) => a.createdAt - b.createdAt)
@@ -204,7 +321,7 @@ export class CryptDb implements CryptDbService {
         masterKey: CryptoKey,
         id: string,
     ): Promise<MessagePlain | null> {
-        await this.open()
+        await this.ensurePlainModelMigrated(masterKey)
 
         const idb = this.requireDb()
         const row = await this.txGet<MessageRow>(idb, STORE_MESSAGES, id)
@@ -215,11 +332,11 @@ export class CryptDb implements CryptDbService {
 
         const json = await decryptUtf8(masterKey, row.blob)
 
-        return normalizeMessage(JSON.parse(json) as MessagePlain)
+        return JSON.parse(json) as MessagePlain
     }
 
     public async saveMessage(masterKey: CryptoKey, m: MessagePlain): Promise<void> {
-        await this.open()
+        await this.ensurePlainModelMigrated(masterKey)
 
         const idb = this.requireDb()
         const blob = await encryptUtf8(masterKey, JSON.stringify(m))
@@ -250,7 +367,7 @@ export class CryptDb implements CryptDbService {
         for (const row of allMsgRows) {
             const json = await decryptUtf8(masterKey, row.blob)
 
-            messages.push(normalizeMessage(JSON.parse(json) as MessagePlain))
+            messages.push(JSON.parse(json) as MessagePlain)
         }
 
         return { contacts, messages, identity }
@@ -265,6 +382,8 @@ export class CryptDb implements CryptDbService {
             identity: IdentityPlain
         },
     ): Promise<void> {
+        const normalized = normalizeBackupPlainPayload(data)
+
         await this.wipe()
         await this.open()
         await this.writeSalt(salt)
@@ -272,15 +391,20 @@ export class CryptDb implements CryptDbService {
         const check = await encryptUtf8(masterKey, "cryptessage_vault_ok")
 
         await this.writeMetaJson("_check", check)
-        await this.saveIdentity(masterKey, data.identity)
+        await this.saveIdentity(masterKey, normalized.identity)
 
-        for (const c of data.contacts) {
+        for (const c of normalized.contacts) {
             await this.saveContact(masterKey, c)
         }
 
-        for (const m of data.messages) {
+        for (const m of normalized.messages) {
             await this.saveMessage(masterKey, m)
         }
+
+        await this.setPlainModelVersion(
+            this.requireDb(),
+            LATEST_PLAIN_MODEL_VERSION,
+        )
     }
 
     public async wipe(): Promise<void> {

@@ -79,13 +79,13 @@ export class ChatTransportManagerProvider implements IChatTransportManager {
             ids.push(id)
         }
 
-        if (contact.transportInstanceOrder?.length) {
-            for (const id of contact.transportInstanceOrder) {
+        if (contact.transport?.instanceOrder?.length) {
+            for (const id of contact.transport.instanceOrder) {
                 add(id)
             }
         } else {
             const defaultId =
-                contact.preferredTransportInstanceId ?? prefs.defaultInstanceId
+                contact.transport?.preferredInstanceId ?? prefs.defaultInstanceId
 
             if (defaultId) {
                 add(defaultId)
