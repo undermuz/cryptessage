@@ -100,8 +100,8 @@ export function ChatThreadHeader({
     }
 
     return (
-        <div className="shrink-0 border-b border-divider bg-default-50/95 backdrop-blur-md">
-            <div className="flex items-center justify-between gap-3 px-4 py-3.5">
+        <div className="w-full rounded-2xl border border-divider bg-content1/95 shadow-xl shadow-black/10 ring-1 ring-black/5 backdrop-blur-xl dark:bg-default-100/90 dark:ring-white/10 sm:rounded-3xl">
+            <div className="flex items-center justify-between gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
                 <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
                     <Button
                         isIconOnly

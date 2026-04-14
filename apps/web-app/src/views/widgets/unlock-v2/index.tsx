@@ -8,7 +8,10 @@ import { useT } from "@/di/react/hooks/useT"
 import { useDi } from "@/di/react/hooks/useDi"
 import { AuthService, type IAuthService } from "@/di/auth/types"
 import { IdentityService, type IIdentityService } from "@/di/identity/types"
-import { VaultBackupService, type IVaultBackupService } from "@/di/vault-backup/types"
+import {
+    VaultBackupService,
+    type IVaultBackupService,
+} from "@/di/vault-backup/types"
 
 type Tab = "create" | "unlock" | "restore"
 
@@ -130,12 +133,13 @@ export function UnlockWidget() {
                     <h1 className="text-xl font-semibold tracking-tight">
                         {t("unlock.title")}
                     </h1>
-                    <p className="text-sm text-default-500">{t("unlock.subtitle")}</p>
+                    <p className="text-sm text-default-500">
+                        {t("unlock.subtitle")}
+                    </p>
                 </div>
 
                 <Tabs
                     className="w-full"
-                    variant="secondary"
                     selectedKey={tabKey}
                     onSelectionChange={(key: Key) => {
                         setTab(String(key) as Tab)
@@ -200,11 +204,7 @@ export function UnlockWidget() {
                             placeholder={t("unlock.passphraseRepeat")}
                         />
 
-                        <Button
-                            type="submit"
-                            isDisabled={busy}
-                            fullWidth
-                        >
+                        <Button type="submit" isDisabled={busy} fullWidth>
                             {busy ? <Spinner size="sm" /> : null}
                             {t("unlock.submitCreate")}
                         </Button>
@@ -230,11 +230,7 @@ export function UnlockWidget() {
                             placeholder={t("unlock.passphrase")}
                         />
 
-                        <Button
-                            type="submit"
-                            isDisabled={busy}
-                            fullWidth
-                        >
+                        <Button type="submit" isDisabled={busy} fullWidth>
                             {busy ? <Spinner size="sm" /> : null}
                             {t("unlock.submitUnlock")}
                         </Button>
@@ -257,7 +253,9 @@ export function UnlockWidget() {
                                 type="file"
                                 accept="application/json,.json"
                                 className="block w-full text-sm text-default-500 file:mr-3 file:rounded-lg file:border-0 file:bg-default-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-foreground hover:file:bg-default-200"
-                                onChange={(e) => onFile(e.target.files?.[0] ?? null)}
+                                onChange={(e) =>
+                                    onFile(e.target.files?.[0] ?? null)
+                                }
                             />
                         </div>
 
@@ -292,4 +290,3 @@ export function UnlockWidget() {
         </div>
     )
 }
-

@@ -106,6 +106,7 @@ export function ChatThreadWidget() {
                     await chat.reload()
                 } catch (e) {
                     const reason = e instanceof Error ? e.message : String(e)
+
                     setToast(reason)
                     await conv.setOutboundTransportState(messageId, "failed")
                     setSendModalOpen(true)
@@ -197,6 +198,13 @@ export function ChatThreadWidget() {
     }, [contactId])
 
     useEffect(() => {
+        // Wait until the message list is mounted: Valtio can update `pendingScrollToBottom`
+        // before `threadScreenReady` flips true, so scrolling earlier would clear the flag
+        // with a null list ref and never scroll after mount.
+        if (!threadScreenReady || !snap.contact) {
+            return
+        }
+
         if (!snap.pendingScrollToBottom) {
             return
         }
@@ -206,7 +214,7 @@ export function ChatThreadWidget() {
         nextTick(() => {
             listRef.current?.scrollToBottom("instant")
         })
-    }, [snap.pendingScrollToBottom, chat, nextTick])
+    }, [threadScreenReady, snap.contact, snap.pendingScrollToBottom, chat, nextTick])
 
     if (!contactId) {
         return null
@@ -253,19 +261,12 @@ export function ChatThreadWidget() {
 
     return (
         <Card className="relative flex h-[calc(100dvh-9.5rem)] max-h-[800px] min-h-[420px] flex-col overflow-hidden rounded-3xl border border-divider shadow-lg ring-1 ring-black/5 dark:ring-white/10">
-            <ChatThreadHeader
-                chat={chat}
-                onReceiveClick={() => {
-                    setToast(null)
-                    setReceiveModalOpen(true)
-                }}
-            />
-
             <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
                 <ChatThreadMessageList
                     ref={listRef}
                     chat={chat}
                     listDisabled={snap.isPendingList}
+                    listClassName="pt-[max(5.5rem,env(safe-area-inset-top,0px)+4.75rem)] pb-[max(10rem,env(safe-area-inset-bottom,0px)+8.5rem)]"
                     onOutboundMessageClick={(item: DecryptedMessageItem) => {
                         const m = item.message
 
@@ -286,21 +287,36 @@ export function ChatThreadWidget() {
                         sentEncryptedResult.mutate(item.decrypted.text)
                     }}
                 />
-            </div>
 
-            {toast && (
-                <div className="shrink-0 border-t border-divider bg-default-100/80 px-4 py-2.5">
-                    <p className="text-center text-xs leading-relaxed text-default-600">
-                        {toast}
-                    </p>
+                <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top,0px))] sm:px-4">
+                    <div className="pointer-events-auto w-full max-w-3xl">
+                        <ChatThreadHeader
+                            chat={chat}
+                            onReceiveClick={() => {
+                                setToast(null)
+                                setReceiveModalOpen(true)
+                            }}
+                        />
+                    </div>
                 </div>
-            )}
 
-            <ChatThreadComposer
-                value={newMessageText}
-                onChange={setNewMessageText}
-                onSubmit={openSendModal}
-            />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col-reverse items-stretch gap-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-4">
+                    <div className="pointer-events-auto mx-auto w-full max-w-3xl">
+                        <ChatThreadComposer
+                            value={newMessageText}
+                            onChange={setNewMessageText}
+                            onSubmit={openSendModal}
+                        />
+                    </div>
+                    {toast && (
+                        <div className="pointer-events-auto mx-auto w-full max-w-3xl rounded-2xl border border-divider bg-default-100/95 px-4 py-2.5 shadow-lg ring-1 ring-black/5 backdrop-blur-md dark:bg-default-50/95 dark:ring-white/10">
+                            <p className="text-center text-xs leading-relaxed text-default-600">
+                                {toast}
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </div>
 
             <ChatSendEncryptedModal
                 open={sendModalOpen}

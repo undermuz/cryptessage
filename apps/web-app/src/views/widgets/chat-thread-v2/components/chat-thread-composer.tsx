@@ -17,7 +17,7 @@ export function ChatThreadComposer({
 
     return (
         <form
-            className="flex shrink-0 items-center gap-2 border-t border-divider bg-default-50 px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4"
+            className="flex w-full shrink-0 items-end gap-2 rounded-2xl border border-divider bg-content1/95 p-2.5 shadow-xl shadow-black/10 ring-1 ring-black/5 backdrop-blur-xl dark:bg-default-100/90 dark:ring-white/10 sm:rounded-3xl sm:p-3"
             onSubmit={(e) => {
                 e.preventDefault()
                 onSubmit()
@@ -41,13 +41,13 @@ export function ChatThreadComposer({
                 variant="secondary"
                 rows={1}
                 style={{ resize: "none" }}
-                className="min-w-0 flex-1 rounded-2xl"
+                className="min-w-0 flex-1 border-0 bg-default-200/40 shadow-none dark:bg-default-200/25"
             />
 
             <Button
                 isIconOnly
                 variant="primary"
-                className="size-11 shrink-0 rounded-full shadow-sm"
+                className="size-11 shrink-0 rounded-full shadow-md"
                 isDisabled={!value.trim()}
                 aria-label={t("chat.sendOpenEncrypted")}
                 type="submit"

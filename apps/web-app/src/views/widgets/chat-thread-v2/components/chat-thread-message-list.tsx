@@ -8,6 +8,8 @@ import type { DecryptedMessageItem, IChatThreadService } from "@/di/chat-thread/
 import { LIST_THRESHOLD, VIEW_COUNT } from "@/di/chat-thread/constants"
 import { useT } from "@/di/react/hooks/useT"
 
+import { cn } from "@/lib/utils"
+
 import { ChatMessageBubble } from "../chat-message-bubble"
 
 export const ChatThreadMessageList = forwardRef<
@@ -15,10 +17,11 @@ export const ChatThreadMessageList = forwardRef<
     {
         chat: IChatThreadService
         listDisabled: boolean
+        listClassName?: string
         onOutboundMessageClick?: (message: DecryptedMessageItem) => void
     }
 >(function ChatThreadMessageList(
-    { chat, listDisabled, onOutboundMessageClick },
+    { chat, listDisabled, listClassName, onOutboundMessageClick },
     ref,
 ) {
     const t = useT()
@@ -67,7 +70,10 @@ export const ChatThreadMessageList = forwardRef<
                         </p>
                     </div>
                 }
-                className="isolate min-h-0 flex-1 bg-gradient-to-b from-default-50/80 to-default-100/60"
+                className={cn(
+                    "isolate min-h-0 flex-1 bg-gradient-to-b from-default-50/80 to-default-100/60",
+                    listClassName,
+                )}
                 as="ul"
                 itemAs="li"
                 itemClassName={(m) =>
@@ -91,7 +97,7 @@ export const ChatThreadMessageList = forwardRef<
             />
 
             {showJumpToBottom && (
-                <div className="pointer-events-auto absolute bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-1/2 z-10 -translate-x-1/2">
+                <div className="pointer-events-auto absolute bottom-[calc(6.25rem+env(safe-area-inset-bottom,0px))] left-1/2 z-30 -translate-x-1/2">
                     <Button
                         variant="primary"
                         size="sm"
