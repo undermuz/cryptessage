@@ -3,7 +3,7 @@ import type { ReactNode } from "react"
 import type { IChatThreadService } from "@/di/chat-thread/types"
 import { ImportQrBlock } from "@/views/widgets/qr-io-v2/import-qr-block"
 
-export function ChatImportQrBlockHeroUI({
+export function ChatImportQrBlock({
     chat,
     pasteArmored,
     onPasteArmoredChange,

@@ -11,14 +11,10 @@ export function TestModal() {
                     <Modal.Dialog className="sm:max-w-[360px]">
                         <Modal.CloseTrigger />
                         <Modal.Header>
-                            <Modal.Heading>Welcome to HeroUI</Modal.Heading>
+                            <Modal.Heading>Test modal</Modal.Heading>
                         </Modal.Header>
                         <Modal.Body>
-                            <p>
-                                A beautiful, fast, and modern React UI library
-                                for building accessible and customizable web
-                                applications with ease.
-                            </p>
+                            <p>Example modal content for local debugging.</p>
                         </Modal.Body>
                         <Modal.Footer>
                             <Button className="w-full" slot="close">

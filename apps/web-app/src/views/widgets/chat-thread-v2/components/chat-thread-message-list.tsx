@@ -10,14 +10,14 @@ import { useT } from "@/di/react/hooks/useT"
 
 import { ChatMessageBubble } from "../chat-message-bubble"
 
-export const ChatThreadMessageListHeroUI = forwardRef<
+export const ChatThreadMessageList = forwardRef<
     BidirectionalListRef<DecryptedMessageItem>,
     {
         chat: IChatThreadService
         listDisabled: boolean
         onOutboundMessageClick?: (message: DecryptedMessageItem) => void
     }
->(function ChatThreadMessageListHeroUI(
+>(function ChatThreadMessageList(
     { chat, listDisabled, onOutboundMessageClick },
     ref,
 ) {

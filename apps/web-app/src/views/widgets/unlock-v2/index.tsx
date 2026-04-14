@@ -12,7 +12,7 @@ import { VaultBackupService, type IVaultBackupService } from "@/di/vault-backup/
 
 type Tab = "create" | "unlock" | "restore"
 
-export function UnlockWidgetHeroUI() {
+export function UnlockWidget() {
     const t = useT()
     const navigate = useNavigate()
     const search = useSearch({ from: "/unlock" })
@@ -124,7 +124,7 @@ export function UnlockWidgetHeroUI() {
         <div className="flex min-h-screen flex-col items-center justify-center px-4 py-10">
             <Surface
                 className="w-full max-w-md space-y-6 rounded-3xl border border-divider p-6 shadow-lg ring-1 ring-black/5 dark:ring-white/10"
-                variant="secondary"
+                variant="default"
             >
                 <div className="space-y-1">
                     <h1 className="text-xl font-semibold tracking-tight">

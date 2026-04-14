@@ -1,5 +1,5 @@
-import { ChatThreadWidgetHeroUI } from "@/views/widgets/chat-thread-v2"
+import { ChatThreadWidget } from "@/views/widgets/chat-thread-v2"
 
 export function ChatPage() {
-    return <ChatThreadWidgetHeroUI />
+    return <ChatThreadWidget />
 }

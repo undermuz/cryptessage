@@ -8,8 +8,8 @@ import type { LastNetworkDelivery } from "@/di/chat-transport/types"
 import type { EncryptedOutgoingBundle } from "@/di/messaging-crypto/types"
 import type { ExportQrLabels } from "@/views/widgets/qr-io-v2/export-qr-block"
 
-import { HttpRestSendPanelHeroUI } from "./panels/http-rest-send-panel.heroui"
-import { QrTextSendPanelHeroUI } from "./panels/qr-text-send-panel.heroui"
+import { HttpRestSendPanel } from "./panels/http-rest-send-panel"
+import { QrTextSendPanel } from "./panels/qr-text-send-panel"
 
 export type TransportSendPanelProps = {
     bundle: EncryptedOutgoingBundle
@@ -25,6 +25,6 @@ export const transportSendPanelRegistry: Record<
     string,
     ComponentType<TransportSendPanelProps>
 > = {
-    [QR_TEXT_TRANSPORT_KIND]: QrTextSendPanelHeroUI,
-    [HTTP_REST_V1_TRANSPORT_KIND]: HttpRestSendPanelHeroUI,
+    [QR_TEXT_TRANSPORT_KIND]: QrTextSendPanel,
+    [HTTP_REST_V1_TRANSPORT_KIND]: HttpRestSendPanel,
 }

@@ -147,7 +147,7 @@ export function ImportQrBlock({
 
                         <Button
                             type="button"
-                            variant="outline"
+                            variant="tertiary"
                             isDisabled={scanOpen || isProcessing}
                             onPress={() => fileInputRef.current?.click()}
                         >

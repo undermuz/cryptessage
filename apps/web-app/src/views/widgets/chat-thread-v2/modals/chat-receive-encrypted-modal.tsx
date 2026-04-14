@@ -6,10 +6,10 @@ import { useSnapshot } from "valtio/react"
 import type { IChatThreadService } from "@/di/chat-thread/types"
 import { useT } from "@/di/react/hooks/useT"
 
-import { ChatImportQrBlockHeroUI } from "../components/chat-import-qr-block"
-import { ChatImportQrPreviewHeroUI } from "../components/chat-import-qr-preview"
+import { ChatImportQrBlock } from "../components/chat-import-qr-block"
+import { ChatImportQrPreview } from "../components/chat-import-qr-preview"
 
-export function ChatReceiveEncryptedModalHeroUI({
+export function ChatReceiveEncryptedModal({
     open,
     onOpenChange,
     chat,
@@ -86,7 +86,7 @@ export function ChatReceiveEncryptedModalHeroUI({
                         </Modal.Header>
 
                         <Modal.Body className="space-y-4 p-4">
-                            <ChatImportQrBlockHeroUI
+                            <ChatImportQrBlock
                                 chat={chat}
                                 pasteArmored={text}
                                 onPasteArmoredChange={setText}
@@ -99,7 +99,7 @@ export function ChatReceiveEncryptedModalHeroUI({
                                 onPickFromFile={(file) => importByQrFile.mutate(file)}
                             >
                                 {snap.import.data !== null && (
-                                    <ChatImportQrPreviewHeroUI
+                                    <ChatImportQrPreview
                                         chat={chat}
                                         data={snap.import.data}
                                         t={t}
@@ -108,7 +108,7 @@ export function ChatReceiveEncryptedModalHeroUI({
                                         }
                                     />
                                 )}
-                            </ChatImportQrBlockHeroUI>
+                            </ChatImportQrBlock>
                         </Modal.Body>
                     </Modal.Dialog>
                 </Modal.Container>

@@ -179,7 +179,7 @@ export function ExportQrBlock({
     return (
         <Surface
             className="flex flex-col gap-4 rounded-3xl p-4"
-            variant="secondary"
+            variant="default"
         >
             {heading ? (
                 <div className="flex items-center justify-between gap-3">

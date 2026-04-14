@@ -1,5 +1,5 @@
-import { UnlockWidgetHeroUI } from "@/views/widgets/unlock-v2"
+import { UnlockWidget } from "@/views/widgets/unlock-v2"
 
 export function UnlockPage() {
-    return <UnlockWidgetHeroUI />
+    return <UnlockWidget />
 }

@@ -1,2 +1,2 @@
-export { ChatThreadWidgetHeroUI } from "./chat-thread-widget.heroui"
+export { ChatThreadWidget } from "./chat-thread-widget"
 

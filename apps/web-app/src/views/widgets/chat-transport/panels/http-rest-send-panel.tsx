@@ -6,7 +6,7 @@ import { HTTP_REST_V1_TRANSPORT_KIND } from "@/di/chat-transport/constants"
 import { useT } from "@/di/react/hooks/useT"
 import type { TransportSendPanelProps } from "@/views/widgets/chat-transport/transport-send-registry"
 
-export function HttpRestSendPanelHeroUI(props: TransportSendPanelProps) {
+export function HttpRestSendPanel(props: TransportSendPanelProps) {
     const t = useT()
     const { networkDelivery, contactName, onNotify, onRetryNetworkSend } =
         props

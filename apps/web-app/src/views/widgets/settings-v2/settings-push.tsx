@@ -42,7 +42,7 @@ function isStandaloneDisplay(): boolean {
     return window.matchMedia("(display-mode: standalone)").matches
 }
 
-export function SettingsPushHeroUI() {
+export function SettingsPush() {
     const t = useT()
     const push = useDi<IPushNotificationsService>(PushNotificationsService)
 
@@ -75,7 +75,7 @@ export function SettingsPushHeroUI() {
 
     if (!status) {
         return (
-            <Surface className="space-y-3 rounded-3xl p-5" variant="secondary">
+            <Surface className="space-y-3 rounded-3xl p-5" variant="default">
                 <h2 className="text-sm font-semibold">{t("settings.push.title")}</h2>
                 <p className="text-sm text-default-500">{t("common.loading")}</p>
             </Surface>
@@ -135,7 +135,7 @@ export function SettingsPushHeroUI() {
     }
 
     return (
-        <Surface className="space-y-4 rounded-3xl p-5" variant="secondary">
+        <Surface className="space-y-4 rounded-3xl p-5" variant="default">
             <div className="space-y-1">
                 <h2 className="text-sm font-semibold">{t("settings.push.title")}</h2>
                 <p className="text-xs text-default-500">{t("settings.push.hint")}</p>
@@ -186,7 +186,7 @@ export function SettingsPushHeroUI() {
             <div className="space-y-2">
                 <Button
                     type="button"
-                    variant="outline"
+                    variant="tertiary"
                     size="sm"
                     isDisabled={testDisabled}
                     isPending={testBusy}

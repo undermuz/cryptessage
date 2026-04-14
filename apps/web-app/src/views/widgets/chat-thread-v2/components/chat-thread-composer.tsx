@@ -4,7 +4,7 @@ import { Button, TextArea } from "@heroui/react"
 
 import { useT } from "@/di/react/hooks/useT"
 
-export function ChatThreadComposerHeroUI({
+export function ChatThreadComposer({
     value,
     onChange,
     onSubmit,

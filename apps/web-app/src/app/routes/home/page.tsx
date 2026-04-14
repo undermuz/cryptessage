@@ -1,5 +1,5 @@
-import { ChatListWidgetHeroUI } from "@/views/widgets/chat-list-v2"
+import { ChatListWidget } from "@/views/widgets/chat-list-v2"
 
 export function HomePage() {
-    return <ChatListWidgetHeroUI />
+    return <ChatListWidget />
 }

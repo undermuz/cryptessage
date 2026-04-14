@@ -22,10 +22,10 @@ import {
 
 import { reloadAppForUpdate } from "@/lib/pwa-reload"
 
-import { SettingsTransportsHeroUI } from "./settings-transports.heroui"
-import { SettingsPushHeroUI } from "./settings-push.heroui"
+import { SettingsTransports } from "./settings-transports"
+import { SettingsPush } from "./settings-push"
 
-export function SettingsWidgetHeroUI() {
+export function SettingsWidget() {
     const t = useT()
     const { preference, setPreference } = useTheme()
     const navigate = useNavigate()
@@ -116,7 +116,7 @@ export function SettingsWidgetHeroUI() {
             {loading ? (
                 <Surface
                     className="flex items-center gap-3 rounded-3xl border border-divider p-6"
-                    variant="secondary"
+                    variant="default"
                 >
                     <Spinner size="sm" />
                     <span className="text-sm text-default-500">
@@ -125,7 +125,7 @@ export function SettingsWidgetHeroUI() {
                 </Surface>
             ) : null}
 
-            <Surface className="space-y-4 rounded-3xl p-5" variant="secondary">
+            <Surface className="space-y-4 rounded-3xl p-5" variant="default">
                 <div className="space-y-1">
                     <h2 className="text-sm font-semibold">
                         {t("settings.appearance")}
@@ -137,7 +137,6 @@ export function SettingsWidgetHeroUI() {
 
                 <Tabs
                     className="w-full"
-                    variant="secondary"
                     selectedKey={themeKey}
                     onSelectionChange={(key: Key) =>
                         setPreference(String(key) as ThemePreference)
@@ -166,7 +165,7 @@ export function SettingsWidgetHeroUI() {
                 </Tabs>
             </Surface>
 
-            <Surface className="space-y-4 rounded-3xl p-5" variant="secondary">
+            <Surface className="space-y-4 rounded-3xl p-5" variant="default">
                 <div className="space-y-1">
                     <h2 className="text-sm font-semibold">
                         {t("settings.visitCardFormat")}
@@ -178,7 +177,6 @@ export function SettingsWidgetHeroUI() {
 
                 <Tabs
                     className="w-full"
-                    variant="secondary"
                     selectedKey={visitKey}
                     onSelectionChange={(key: Key) => {
                         const v = String(key) as CryptoProtocolId
@@ -196,7 +194,9 @@ export function SettingsWidgetHeroUI() {
                                 await cryptoPrefs.setDefaultVisitCardFormat(v)
                             } catch (ex) {
                                 const reason =
-                                    ex instanceof Error ? ex.message : String(ex)
+                                    ex instanceof Error
+                                        ? ex.message
+                                        : String(ex)
 
                                 setCryptErr(reason)
                             }
@@ -224,20 +224,27 @@ export function SettingsWidgetHeroUI() {
                 ) : null}
             </Surface>
 
-            <SettingsTransportsHeroUI />
+            <SettingsTransports />
 
-            <SettingsPushHeroUI />
+            <SettingsPush />
 
-            <Surface className="space-y-3 rounded-3xl p-5" variant="secondary">
-                <h2 className="text-sm font-semibold">{t("settings.fingerprint")}</h2>
-                <p className="break-all font-mono text-xs text-foreground">{fp}</p>
+            <Surface className="space-y-3 rounded-3xl p-5" variant="default">
+                <h2 className="text-sm font-semibold">
+                    {t("settings.fingerprint")}
+                </h2>
+                <p className="break-all font-mono text-xs text-foreground">
+                    {fp}
+                </p>
                 <p className="text-xs text-default-500">
                     {t("settings.publicKeyHelp")}
                 </p>
             </Surface>
 
             {publicArmored ? (
-                <Surface className="space-y-3 rounded-3xl p-5" variant="secondary">
+                <Surface
+                    className="space-y-3 rounded-3xl p-5"
+                    variant="default"
+                >
                     <h2 className="text-sm font-semibold">
                         {t("settings.publicKeyBlock")}
                     </h2>
@@ -258,7 +265,9 @@ export function SettingsWidgetHeroUI() {
                                 size="sm"
                                 aria-label={t("settings.copyPublicKey")}
                                 onPress={() =>
-                                    void navigator.clipboard.writeText(publicArmored)
+                                    void navigator.clipboard.writeText(
+                                        publicArmored,
+                                    )
                                 }
                             >
                                 <Copy className="size-4" />
@@ -268,7 +277,7 @@ export function SettingsWidgetHeroUI() {
                 </Surface>
             ) : null}
 
-            <Surface className="space-y-3 rounded-3xl p-5" variant="secondary">
+            <Surface className="space-y-3 rounded-3xl p-5" variant="default">
                 <div className="space-y-1">
                     <h2 className="text-sm font-semibold">
                         {t("settings.exportBackup")}
@@ -277,26 +286,32 @@ export function SettingsWidgetHeroUI() {
                         {t("settings.backupHint")}
                     </p>
                 </div>
-                <Button type="button" variant="outline" onPress={() => void onExport()}>
+                <Button
+                    type="button"
+                    variant="tertiary"
+                    onPress={() => void onExport()}
+                >
                     <Download className="size-4" />
                     {t("settings.exportBackup")}
                 </Button>
                 {err ? <p className="text-sm text-danger">{err}</p> : null}
             </Surface>
 
-            <Surface className="space-y-3 rounded-3xl p-5" variant="secondary">
+            <Surface className="space-y-3 rounded-3xl p-5" variant="default">
                 <div className="space-y-1">
                     <h2 className="text-sm font-semibold">
                         {t("settings.appVersion")}
                     </h2>
-                    <p className="font-mono text-sm text-foreground">{appVersion}</p>
+                    <p className="font-mono text-sm text-foreground">
+                        {appVersion}
+                    </p>
                     <p className="text-xs text-default-500">
                         {t("settings.updateAppHint")}
                     </p>
                 </div>
                 <Button
                     type="button"
-                    variant="outline"
+                    variant="tertiary"
                     isPending={updateBusy}
                     onPress={() => {
                         setUpdateBusy(true)
@@ -317,4 +332,3 @@ export function SettingsWidgetHeroUI() {
         </div>
     )
 }
-

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Link, useParams } from "@tanstack/react-router"
+import { useNavigate, useParams } from "@tanstack/react-router"
 import { useMutation } from "@tanstack/react-query"
+import { ArrowLeft } from "lucide-react"
 import { useNextTickLayout } from "use-next-tick"
 
 import type { BidirectionalListRef } from "broad-infinite-list/react"
-import { Card, Spinner, Surface } from "@heroui/react"
+import { Button, Card, Spinner, Surface } from "@heroui/react"
 
 import { QR_TEXT_TRANSPORT_KIND } from "@/di/chat-transport/constants"
 import {
@@ -27,13 +28,13 @@ import {
 import type { MessagePlain } from "@/di/crypt-db/types-data"
 import type { DecryptedMessageItem } from "@/di/chat-thread/types"
 
-import { ChatThreadHeaderHeroUI } from "./components/chat-thread-header"
-import { ChatThreadComposerHeroUI } from "./components/chat-thread-composer"
-import { ChatThreadMessageListHeroUI } from "./components/chat-thread-message-list"
-import { ChatSendEncryptedModalHeroUI } from "./modals/chat-send-encrypted-modal"
-import { ChatReceiveEncryptedModalHeroUI } from "./modals/chat-receive-encrypted-modal"
+import { ChatThreadHeader } from "./components/chat-thread-header"
+import { ChatThreadComposer } from "./components/chat-thread-composer"
+import { ChatThreadMessageList } from "./components/chat-thread-message-list"
+import { ChatSendEncryptedModal } from "./modals/chat-send-encrypted-modal"
+import { ChatReceiveEncryptedModal } from "./modals/chat-receive-encrypted-modal"
 
-export function ChatThreadWidgetHeroUI() {
+export function ChatThreadWidget() {
     const t = useT()
     const nextTick = useNextTickLayout()
 
@@ -44,6 +45,7 @@ export function ChatThreadWidgetHeroUI() {
     const outgoing = useDi<IChatTransportOutgoingStore>(ChatTransportOutgoingStore)
 
     const { contactId } = useParams({ from: "/authed/chat/$contactId" })
+    const navigate = useNavigate()
 
     const listRef = useRef<BidirectionalListRef<DecryptedMessageItem>>(null)
 
@@ -214,7 +216,7 @@ export function ChatThreadWidgetHeroUI() {
         return (
             <Surface
                 className="flex min-h-[200px] items-center justify-center gap-3 rounded-3xl border border-divider p-8"
-                variant="secondary"
+                variant="default"
             >
                 <Spinner size="sm" />
                 <span className="text-sm text-default-500">
@@ -228,24 +230,30 @@ export function ChatThreadWidgetHeroUI() {
         return (
             <Surface
                 className="space-y-3 rounded-3xl border border-divider p-6"
-                variant="secondary"
+                variant="default"
             >
-                <p className="text-sm text-default-500">
-                    {t("unlock.error.generic")}
-                </p>
-                <Link
-                    to="/"
-                    className="inline-flex text-sm font-medium text-primary underline-offset-2 hover:underline"
-                >
-                    {t("chat.back")}
-                </Link>
+                <div className="flex items-start gap-3">
+                    <Button
+                        isIconOnly
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0"
+                        aria-label={t("chat.back")}
+                        onPress={() => void navigate({ to: "/" })}
+                    >
+                        <ArrowLeft className="size-5" />
+                    </Button>
+                    <p className="min-w-0 flex-1 text-sm text-default-500">
+                        {t("unlock.error.generic")}
+                    </p>
+                </div>
             </Surface>
         )
     }
 
     return (
         <Card className="relative flex h-[calc(100dvh-9.5rem)] max-h-[800px] min-h-[420px] flex-col overflow-hidden rounded-3xl border border-divider shadow-lg ring-1 ring-black/5 dark:ring-white/10">
-            <ChatThreadHeaderHeroUI
+            <ChatThreadHeader
                 chat={chat}
                 onReceiveClick={() => {
                     setToast(null)
@@ -254,7 +262,7 @@ export function ChatThreadWidgetHeroUI() {
             />
 
             <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-                <ChatThreadMessageListHeroUI
+                <ChatThreadMessageList
                     ref={listRef}
                     chat={chat}
                     listDisabled={snap.isPendingList}
@@ -288,13 +296,13 @@ export function ChatThreadWidgetHeroUI() {
                 </div>
             )}
 
-            <ChatThreadComposerHeroUI
+            <ChatThreadComposer
                 value={newMessageText}
                 onChange={setNewMessageText}
                 onSubmit={openSendModal}
             />
 
-            <ChatSendEncryptedModalHeroUI
+            <ChatSendEncryptedModal
                 open={sendModalOpen}
                 onOpenChange={(nextOpen) => {
                     setSendModalOpen(nextOpen)
@@ -313,7 +321,7 @@ export function ChatThreadWidgetHeroUI() {
             />
 
             {sentPreviewMessage && (
-                <ChatSendEncryptedModalHeroUI
+                <ChatSendEncryptedModal
                     open={sentPreviewOpen}
                     onOpenChange={(nextOpen) => {
                         setSentPreviewOpen(nextOpen)
@@ -333,7 +341,7 @@ export function ChatThreadWidgetHeroUI() {
                 />
             )}
 
-            <ChatReceiveEncryptedModalHeroUI
+            <ChatReceiveEncryptedModal
                 open={receiveModalOpen}
                 onOpenChange={setReceiveModalOpen}
                 chat={chat}

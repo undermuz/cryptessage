@@ -21,10 +21,10 @@ import type { EncryptedOutgoingBundle } from "@/di/messaging-crypto/types"
 import { useT } from "@/di/react/hooks/useT"
 import { useDi } from "@/di/react/hooks/useDi"
 import type { ExportQrLabels } from "@/views/widgets/qr-io-v2/export-qr-block"
-import { TransportSendFallbackPanelHeroUI } from "@/views/widgets/chat-transport/panels/transport-send-fallback-panel"
+import { TransportSendFallbackPanel } from "@/views/widgets/chat-transport/panels/transport-send-fallback-panel"
 import { transportSendPanelRegistry } from "@/views/widgets/chat-transport/transport-send-registry"
 
-export function ChatSendEncryptedModalHeroUI(props: {
+export function ChatSendEncryptedModal(props: {
     open: boolean
     onOpenChange: (open: boolean) => void
     chat: IChatThreadService
@@ -311,7 +311,7 @@ export function ChatSendEncryptedModalHeroUI(props: {
                                         onRetryNetworkSend={retryNetworkSend}
                                     />
                                 ) : (
-                                    <TransportSendFallbackPanelHeroUI
+                                    <TransportSendFallbackPanel
                                         transportKind={activeProfile.kind}
                                         bundle={encryptedResult}
                                         contactName={contact.displayName}

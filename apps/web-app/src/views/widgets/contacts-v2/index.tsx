@@ -81,7 +81,7 @@ function toCompactBytes(raw: VisitCardRawPayload): Uint8Array | null {
     }
 }
 
-export function ContactsWidgetHeroUI() {
+export function ContactsWidget() {
     const t = useT()
     const conv = useDi<IConversationService>(ConversationService)
     const pgp = useDi<IOpenPgpCryptoService>(OpenPgpCryptoService)
@@ -502,7 +502,7 @@ export function ContactsWidgetHeroUI() {
                                         {!previewLoading && preview ? (
                                             <Surface
                                                 className="space-y-2 rounded-2xl p-4"
-                                                variant="secondary"
+                                                variant="default"
                                             >
                                                 <div className="flex items-start gap-2">
                                                     {preview.valid ? (
@@ -574,7 +574,7 @@ export function ContactsWidgetHeroUI() {
                                                     </Button>
                                                     <Button
                                                         type="button"
-                                                        variant="outline"
+                                                        variant="tertiary"
                                                         onPress={discardPendingQr}
                                                     >
                                                         {t("contacts.discardReview")}
@@ -590,7 +590,7 @@ export function ContactsWidgetHeroUI() {
                 ) : null}
             </ImportQrBlock>
 
-            <Surface className="space-y-4 rounded-3xl p-5" variant="secondary">
+            <Surface className="space-y-4 rounded-3xl p-5" variant="default">
                 <div className="flex items-center justify-between gap-3">
                     <h2 className="text-sm font-semibold">{t("home.title")}</h2>
                     <div className="flex items-center gap-2 text-xs text-default-500">

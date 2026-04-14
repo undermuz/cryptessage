@@ -2,7 +2,7 @@ import { Button, Modal } from "@heroui/react"
 
 import { useT } from "@/di/react/hooks/useT"
 
-export function DeleteChatConfirmModalHeroUI(props: {
+export function DeleteChatConfirmModal(props: {
     open: boolean
     onOpenChange: (open: boolean) => void
     displayName: string

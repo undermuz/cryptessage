@@ -1,7 +1,7 @@
 import { useT } from "@/di/react/hooks/useT"
 import type { TransportSendPanelProps } from "@/views/widgets/chat-transport/transport-send-registry"
 
-export function TransportSendFallbackPanelHeroUI(
+export function TransportSendFallbackPanel(
     props: TransportSendPanelProps & { transportKind: string },
 ) {
     const t = useT()

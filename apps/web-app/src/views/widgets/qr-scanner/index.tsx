@@ -202,7 +202,7 @@ export function QrScannerPanel({ onResult, onClose }: Props) {
                 playsInline
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="tertiary" onClick={onClose}>
                 {t("contacts.stopCamera")}
             </Button>
             <details className="rounded-md border border-border bg-muted/30 p-2 text-xs">

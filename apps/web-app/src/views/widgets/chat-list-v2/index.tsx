@@ -16,9 +16,9 @@ import {
 } from "@/di/identity/types"
 import type { ContactPlain } from "@/di/crypt-db/types-data"
 
-import { DeleteChatConfirmModalHeroUI } from "@/views/widgets/delete-chat-confirm-modal.heroui"
+import { DeleteChatConfirmModal } from "@/views/widgets/delete-chat-confirm-modal"
 
-export function ChatListWidgetHeroUI() {
+export function ChatListWidget() {
     const t = useT()
     const conv = useDi<IConversationService>(ConversationService)
     const identity = useDi<IIdentityService>(IdentityService)
@@ -65,7 +65,7 @@ export function ChatListWidgetHeroUI() {
         return (
             <Surface
                 className="flex items-center gap-3 rounded-3xl border border-divider p-6"
-                variant="secondary"
+                variant="default"
             >
                 <Spinner size="sm" />
                 <span className="text-sm text-default-500">
@@ -88,13 +88,13 @@ export function ChatListWidgetHeroUI() {
             </div>
 
             {contacts.length === 0 ? (
-                <Surface className="rounded-3xl p-6" variant="secondary">
+                <Surface className="rounded-3xl p-6" variant="default">
                     <p className="text-sm leading-relaxed text-default-500">
                         {t("home.empty")}
                     </p>
                 </Surface>
             ) : (
-                <Surface className="rounded-3xl p-2" variant="secondary">
+                <Surface className="rounded-3xl p-2" variant="default">
                     <ul className="divide-y divide-divider">
                         {contacts.map((c) => (
                             <li
@@ -138,7 +138,7 @@ export function ChatListWidgetHeroUI() {
             )}
 
             {pendingDelete ? (
-                <DeleteChatConfirmModalHeroUI
+                <DeleteChatConfirmModal
                     open
                     displayName={pendingDelete.displayName}
                     busy={deleteBusy}

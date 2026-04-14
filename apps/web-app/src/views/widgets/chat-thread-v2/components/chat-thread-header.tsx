@@ -1,7 +1,20 @@
 import { useEffect, useState } from "react"
-import { Link, useNavigate } from "@tanstack/react-router"
-import { Inbox, RefreshCw, Trash2 } from "lucide-react"
-import { Button, Input, Spinner } from "@heroui/react"
+import { useNavigate } from "@tanstack/react-router"
+import {
+    ArrowLeft,
+    Inbox,
+    MoreVertical,
+    RefreshCw,
+    Trash2,
+} from "lucide-react"
+import {
+    Button,
+    Dropdown,
+    Header,
+    Label,
+    Separator,
+    Spinner,
+} from "@heroui/react"
 import { useSnapshot } from "valtio/react"
 
 import {
@@ -17,11 +30,12 @@ import type { ContactPlain } from "@/di/crypt-db/types-data"
 import { useDi } from "@/di/react/hooks/useDi"
 import { useT } from "@/di/react/hooks/useT"
 
-import { DeleteChatConfirmModalHeroUI } from "@/views/widgets/delete-chat-confirm-modal.heroui"
+import { DeleteChatConfirmModal } from "@/views/widgets/delete-chat-confirm-modal"
 
+import { ChatThreadTransportModal } from "./chat-thread-transport-modal"
 import { initialsFromName } from "../utils"
 
-export function ChatThreadHeaderHeroUI({
+export function ChatThreadHeader({
     chat,
     onReceiveClick,
 }: {
@@ -39,6 +53,8 @@ export function ChatThreadHeaderHeroUI({
     const inboundSnap = useSnapshot(httpInbound.manualInboundUi)
 
     const [httpInboxId, setHttpInboxId] = useState("")
+    const [transportModalOpen, setTransportModalOpen] = useState(false)
+    const [transportSaveBusy, setTransportSaveBusy] = useState(false)
     const [deleteOpen, setDeleteOpen] = useState(false)
     const [deleteBusy, setDeleteBusy] = useState(false)
     const [deleteErr, setDeleteErr] = useState<string | null>(null)
@@ -50,7 +66,7 @@ export function ChatThreadHeaderHeroUI({
         }
 
         setHttpInboxId(contact.transport?.httpRestInboxRecipientKeyId ?? "")
-    }, [contact?.id, contact?.transport?.httpRestInboxRecipientKeyId])
+    }, [contact])
 
     if (!contact) {
         return null
@@ -72,14 +88,31 @@ export function ChatThreadHeaderHeroUI({
             },
         }
 
-        await conv.saveContact(next)
-        await chat.reload()
+        setTransportSaveBusy(true)
+
+        try {
+            await conv.saveContact(next)
+            await chat.reload()
+            setTransportModalOpen(false)
+        } finally {
+            setTransportSaveBusy(false)
+        }
     }
 
     return (
         <div className="shrink-0 border-b border-divider bg-default-50/95 backdrop-blur-md">
             <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-                <div className="flex min-w-0 items-center gap-3">
+                <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+                    <Button
+                        isIconOnly
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0"
+                        aria-label={t("chat.back")}
+                        onPress={() => void navigate({ to: "/" })}
+                    >
+                        <ArrowLeft className="size-5" />
+                    </Button>
                     <div
                         className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-xs font-bold text-primary-foreground shadow-sm ring-1 ring-black/5 dark:ring-white/10"
                         aria-hidden
@@ -131,45 +164,79 @@ export function ChatThreadHeaderHeroUI({
                     >
                         <Inbox className="size-5" />
                     </Button>
-                    <Button
-                        isIconOnly
-                        variant="ghost"
-                        size="sm"
-                        aria-label={t("chat.deleteChat")}
-                        onPress={() => {
-                            setDeleteErr(null)
-                            setDeleteOpen(true)
-                        }}
-                    >
-                        <Trash2 className="size-5 text-danger" />
-                    </Button>
-                    <Link
-                        to="/"
-                        className="rounded-lg px-2.5 py-2 text-sm font-medium text-default-600 transition-colors hover:bg-default-100 hover:text-foreground"
-                    >
-                        {t("chat.back")}
-                    </Link>
+                    <Dropdown>
+                        <Dropdown.Trigger>
+                            <Button
+                                isIconOnly
+                                variant="ghost"
+                                size="sm"
+                                aria-label={t("chat.chatMenu")}
+                            >
+                                <MoreVertical className="size-5" />
+                            </Button>
+                        </Dropdown.Trigger>
+                        <Dropdown.Popover
+                            placement="bottom end"
+                            className="min-w-[14rem]"
+                        >
+                            <Dropdown.Menu
+                                onAction={(key) => {
+                                    const id = String(key)
+
+                                    if (id === "transport-settings") {
+                                        setTransportModalOpen(true)
+                                    }
+
+                                    if (id === "delete-chat") {
+                                        setDeleteErr(null)
+                                        setDeleteOpen(true)
+                                    }
+                                }}
+                            >
+                                <Dropdown.Section>
+                                    <Header>{t("chat.chatMenuSection")}</Header>
+                                    <Dropdown.Item
+                                        id="transport-settings"
+                                        textValue={t(
+                                            "chat.transportSettingsMenu",
+                                        )}
+                                    >
+                                        <Label>
+                                            {t("chat.transportSettingsMenu")}
+                                        </Label>
+                                    </Dropdown.Item>
+                                </Dropdown.Section>
+                                <Separator />
+                                <Dropdown.Section>
+                                    <Dropdown.Item
+                                        id="delete-chat"
+                                        textValue={t("chat.deleteChatMenu")}
+                                    >
+                                        <Label className="flex items-center gap-2 text-danger">
+                                            <Trash2
+                                                className="size-4 shrink-0"
+                                                aria-hidden
+                                            />
+                                            {t("chat.deleteChatMenu")}
+                                        </Label>
+                                    </Dropdown.Item>
+                                </Dropdown.Section>
+                            </Dropdown.Menu>
+                        </Dropdown.Popover>
+                    </Dropdown>
                 </div>
             </div>
-            <div className="flex flex-wrap items-end gap-2 border-t border-divider/60 px-4 py-2">
-                <Input
-                    aria-label={t("transport.httpInboxIdLabel")}
-                    placeholder={t("transport.httpInboxIdPlaceholder")}
-                    value={httpInboxId}
-                    onChange={(e) => setHttpInboxId(e.target.value)}
-                    variant="secondary"
-                    className="min-w-[12rem] max-w-md flex-1"
-                />
-                <Button
-                    size="sm"
-                    variant="outline"
-                    onPress={() => void saveHttpInboxId()}
-                >
-                    {t("transport.httpInboxIdSave")}
-                </Button>
-            </div>
 
-            <DeleteChatConfirmModalHeroUI
+            <ChatThreadTransportModal
+                open={transportModalOpen}
+                onOpenChange={setTransportModalOpen}
+                httpInboxId={httpInboxId}
+                onHttpInboxIdChange={setHttpInboxId}
+                onSave={() => void saveHttpInboxId()}
+                saveBusy={transportSaveBusy}
+            />
+
+            <DeleteChatConfirmModal
                 open={deleteOpen}
                 displayName={contact.displayName}
                 busy={deleteBusy}

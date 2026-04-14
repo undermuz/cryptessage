@@ -5,7 +5,7 @@ import type { TransportSendPanelProps } from "@/views/widgets/chat-transport/tra
 import { ExportQrBlock } from "@/views/widgets/qr-io-v2/export-qr-block"
 import { useT } from "@/di/react/hooks/useT"
 
-export function QrTextSendPanelHeroUI(props: TransportSendPanelProps) {
+export function QrTextSendPanel(props: TransportSendPanelProps) {
     const { bundle, contactName, labels, onNotify } = props
     void props.networkDelivery
     const t = useT()

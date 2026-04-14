@@ -9,7 +9,7 @@ import { ImportQrPreviewShell } from "@/views/widgets/qr-io-v2/import-qr-preview
 import type { NotNull } from "../types"
 import { payloadByteLength } from "../utils"
 
-export function ChatImportQrPreviewHeroUI(props: {
+export function ChatImportQrPreview(props: {
     chat: IChatThreadService
     data: NotNull<ChatThreadImportState["data"]>
     t: (key: string, options?: Record<string, unknown>) => string
@@ -69,7 +69,7 @@ export function ChatImportQrPreviewHeroUI(props: {
                             {t("chat.saveInbound")}
                         </Button>
                         <Button
-                            variant="outline"
+                            variant="tertiary"
                             onPress={() => chat.setImportData(null)}
                         >
                             {t("contacts.discardReview")}
@@ -81,7 +81,7 @@ export function ChatImportQrPreviewHeroUI(props: {
             {canReset && (
                 <div className="pt-2">
                     <Button
-                        variant="outline"
+                        variant="tertiary"
                         onPress={() => chat.setImportData(null)}
                     >
                         {t("contacts.discardReview")}
